@@ -37,13 +37,13 @@
  #endif
 
 #else
- #if JUCE_LINUX || JUCE_ANDROID
   #include <sys/types.h>
   #include <sys/socket.h>
   #include <sys/errno.h>
   #include <unistd.h>
   #include <netinet/in.h>
- #endif
+  #include <sys/ioctl.h>
+  #include <net/if.h>
 
  #include <fcntl.h>
  #include <netdb.h>
@@ -64,6 +64,250 @@ BEGIN_JUCE_NAMESPACE
 #endif
 
 //==============================================================================
+uint32 Socket::HostToNetworkUint32 (uint32 value)
+{
+    return htonl (value);
+}
+
+uint16 Socket::HostToNetworkUint16 (uint16 value)
+{
+    return htons (value);
+}
+    
+uint32 Socket::NetworkToHostUint32 (uint32 value)
+{
+    return ntohl (value);
+}
+
+uint16 Socket::NetworkToHostUint16 (uint16 value)
+{
+    return ntohs (value);
+}
+
+const uint16 Socket::anyPort = (0);
+
+
+//==============================================================================
+//==============================================================================
+IpAddress::IpAddress()
+    : ipAddress (0)
+{
+}
+
+IpAddress::IpAddress (uint32 addr)
+    : ipAddress (addr)
+{
+}
+
+IpAddress::IpAddress (const IpAddress& other)
+    : ipAddress (other.ipAddress)
+{
+}
+
+IpAddress& IpAddress::operator= (const IpAddress& other)
+{
+    ipAddress = other.ipAddress;
+    return *this;
+}
+
+IpAddress::IpAddress (const String& addr)
+{
+    uint32 temp = inet_addr (addr.toUTF8());
+    ipAddress = ntohl (temp);
+}
+
+String IpAddress::toString() const
+{
+    String s;
+    
+    s = String ((ipAddress >> 24) & 0xFF);
+    s << '.';
+    s << String ((ipAddress >> 16) & 0xFF);
+    s << '.';
+    s << String ((ipAddress >> 8) & 0xFF);
+    s << '.';
+    s << String (ipAddress & 0xFF);
+    
+    return s;
+}
+
+uint32 IpAddress::toUint32() const noexcept
+{
+    return ipAddress;
+}
+
+uint32 IpAddress::toNetworkUint32() const noexcept
+{
+    return htonl (ipAddress);
+}
+
+bool IpAddress::isAny() const noexcept          { return ipAddress == 0; }
+bool IpAddress::isBroadcast() const noexcept    { return ipAddress == 0xFFFFFFFF; }
+bool IpAddress::isLocal() const noexcept        { return ipAddress == 0x7F000001; }
+
+bool IpAddress::operator== (const IpAddress& other) const noexcept
+{ 
+    return ipAddress == other.ipAddress; 
+}
+
+bool IpAddress::operator!= (const IpAddress& other) const noexcept
+{ 
+    return ipAddress != other.ipAddress;
+}
+
+#if JUCE_WINDOWS
+    void IpAddress::findAllIpAddresses (Array<IpAddress>& result)
+    {
+        // For consistancy
+        result.addIfNotAlreadyThere (IpAddress ("127.0.0.1"));
+
+        DynamicLibrary dll ("iphlpapi.dll");
+        JUCE_DLL_FUNCTION (GetAdaptersInfo, getAdaptersInfo, DWORD, dll, (PIP_ADAPTER_INFO, PULONG))
+
+        if (getAdaptersInfo != nullptr)
+        {
+            ULONG len = sizeof (IP_ADAPTER_INFO);
+            HeapBlock<IP_ADAPTER_INFO> adapterInfo (1);
+
+            if (getAdaptersInfo (adapterInfo, &len) == ERROR_BUFFER_OVERFLOW)
+                adapterInfo.malloc (len, 1);
+
+            if (getAdaptersInfo (adapterInfo, &len) == NO_ERROR)
+            {
+                for (PIP_ADAPTER_INFO adapter = adapterInfo; adapter != nullptr; adapter = adapter->Next)
+                {
+                    IpAddress ip (adapter->IpAddressList.IpAddress.String);
+                    if (! ip.isAny())
+                        result.addIfNotAlreadyThere (ip);
+                }
+            }
+        }
+    }
+#endif
+
+#if JUCE_MAC || JUCE_IOS
+    // Oh joy, two incompatible SIOCGIFCONF interfaces...
+    void IpAddress::findAllIpAddresses (Array<IpAddress>& result)
+    {
+	    struct ifconf cfg;
+	    size_t buffer_capacity;
+	    char* buffer = nullptr;
+        int sock = -1;
+        
+	    // Compute the sizes of ifreq structures
+	    const size_t ifreq_size_in = IFNAMSIZ + sizeof (struct sockaddr_in);
+	    const size_t ifreq_size_in6 = IFNAMSIZ + sizeof (struct sockaddr_in6);
+    	
+        // Poor man's try since we can be in an existing noexcept
+        do
+        {
+            // Create a dummy socket to execute the IO control on
+            sock = socket (AF_INET, SOCK_DGRAM, 0);
+            if (sock < 0)
+                break;
+            
+            // Repeatedly call the IO control with increasing buffer sizes until success
+            // Ugly, old school...
+            bool success = true;
+            buffer_capacity = ifreq_size_in6;
+            buffer = NULL;
+            do 
+            {
+                buffer_capacity *= 2;
+                char* buffer_new = (char*)realloc (buffer, buffer_capacity);
+                if (buffer_new)
+                {
+                    buffer = buffer_new;
+                }
+                else
+                {
+                    success = false;
+                    break;
+                }
+                
+                cfg.ifc_len = buffer_capacity;
+                cfg.ifc_buf = buffer;
+                
+                if ((ioctl (sock, SIOCGIFCONF, &cfg) < 0) && (errno != EINVAL))
+                {
+                    success = false;
+                    break;
+                }
+                
+            } while ((buffer_capacity - cfg.ifc_len) < 2 * ifreq_size_in6);
+            
+            // How did we do?
+            if (success == false)
+                break;
+
+            // Copy the interface addresses into the result array
+            while (cfg.ifc_len >= ifreq_size_in) 
+            {
+                // Skip entries for non-internet addresses
+                if (cfg.ifc_req->ifr_addr.sa_family == AF_INET)
+                {
+                    const struct sockaddr_in* addr_in = (const struct sockaddr_in*) &cfg.ifc_req->ifr_addr;
+                    in_addr_t addr = addr_in->sin_addr.s_addr;
+                    // Skip entries without an address
+                    if (addr != INADDR_NONE)
+                        result.addIfNotAlreadyThere (IpAddress (ntohl(addr)));
+                }
+                
+                // Move to the next structure in the buffer
+                // CANNOT just use sizeof (ifreq) because entries vary in size
+                cfg.ifc_len -= IFNAMSIZ + cfg.ifc_req->ifr_addr.sa_len;
+                cfg.ifc_buf += IFNAMSIZ + cfg.ifc_req->ifr_addr.sa_len;
+            }
+	    } while (0);
+        
+	    // Free the buffer and close the socket if necessary
+	    if (buffer != nullptr)
+		    free(buffer);
+        
+        if (sock >= 0)
+            close(sock);
+    }
+#endif
+
+#if JUCE_LINUX || JUCE_ANDROID
+    void IpAddress::findAllIpAddresses (Array<IpAddress>& result)
+    {
+        const int s = socket (AF_INET, SOCK_DGRAM, 0);
+        if (s != -1)
+        {
+            char buf [1024];
+            struct ifconf ifc;
+            ifc.ifc_len = sizeof (buf);
+            ifc.ifc_buf = buf;
+            ioctl (s, SIOCGIFCONF, &ifc);
+                                
+            struct ifreq *ifr = ifc.ifc_req;
+            int nInterfaces = ifc.ifc_len / sizeof(struct ifreq);
+            for(int i = 0; i < nInterfaces; i++)
+            {
+                struct ifreq *item = &ifr[i];
+                
+                if (item->ifr_addr.sa_family == AF_INET)
+                {
+                    const struct sockaddr_in* addr_in = (const struct sockaddr_in*) &item->ifr_addr;
+                    in_addr_t addr = addr_in->sin_addr.s_addr;
+                    // Skip entries without an address
+                    if (addr != INADDR_NONE)
+                        result.addIfNotAlreadyThere (IpAddress (ntohl(addr)));
+                }
+            }
+            close (s);
+        }
+    }
+#endif
+
+    const IpAddress IpAddress::any (0);
+    const IpAddress IpAddress::broadcast (0xFFFFFFFF);
+    const IpAddress IpAddress::localhost (0x7F000001);
+ 
+
+//==============================================================================
+//==============================================================================
 namespace SocketHelpers
 {
     void initSockets()
@@ -82,27 +326,30 @@ namespace SocketHelpers
        #endif
     }
 
-    bool resetSocketOptions (const int handle, const bool isDatagram, const bool allowBroadcast) noexcept
+    bool resetSocketOptions (const int handle, const bool isDatagram, const bool allowBroadcast = false, const bool allowReuse = false) noexcept
     {
         const int sndBufSize = 65536;
         const int rcvBufSize = 65536;
         const int one = 1;
+        int reuse = allowReuse ? 1 : 0;
 
         return handle > 0
                 && setsockopt (handle, SOL_SOCKET, SO_RCVBUF, (const char*) &rcvBufSize, sizeof (rcvBufSize)) == 0
                 && setsockopt (handle, SOL_SOCKET, SO_SNDBUF, (const char*) &sndBufSize, sizeof (sndBufSize)) == 0
+                && setsockopt (handle, SOL_SOCKET, SO_REUSEADDR, (const char*) &reuse, sizeof 
+                    (reuse)) == 0
                 && (isDatagram ? ((! allowBroadcast) || setsockopt (handle, SOL_SOCKET, SO_BROADCAST, (const char*) &one, sizeof (one)) == 0)
                                : (setsockopt (handle, IPPROTO_TCP, TCP_NODELAY, (const char*) &one, sizeof (one)) == 0));
     }
 
-    bool bindSocketToPort (const int handle, const int port) noexcept
+    bool bindSocketToPort (const int handle, const int port, const IpAddress& localAddress = IpAddress::any) noexcept
     {
-        if (handle <= 0 || port <= 0)
+        if (handle <= 0 || port < 0)
             return false;
 
         struct sockaddr_in servTmpAddr = { 0 };
         servTmpAddr.sin_family = PF_INET;
-        servTmpAddr.sin_addr.s_addr = htonl (INADDR_ANY);
+        servTmpAddr.sin_addr.s_addr = localAddress.toNetworkUint32();
         servTmpAddr.sin_port = htons ((uint16) port);
 
         return bind (handle, (struct sockaddr*) &servTmpAddr, sizeof (struct sockaddr_in)) >= 0;
@@ -473,17 +720,20 @@ bool StreamingSocket::isLocal() const noexcept
 
 //==============================================================================
 //==============================================================================
-DatagramSocket::DatagramSocket (const int localPortNumber, const bool allowBroadcast_)
+DatagramSocket::DatagramSocket (const int localPortNumber, const bool allowBroadcast_, const bool allowReuse_, const IpAddress& localAddress_)
     : portNumber (0),
       handle (-1),
       connected (true),
       allowBroadcast (allowBroadcast_),
+      allowReuse (allowReuse_),
+      localAddress (localAddress_),
       serverAddress (0)
 {
     SocketHelpers::initSockets();
 
     handle = (int) socket (AF_INET, SOCK_DGRAM, 0);
-    bindToPort (localPortNumber);
+    SocketHelpers::resetSocketOptions (handle, true, allowBroadcast, allowReuse);
+    bindToPort (localPortNumber, localAddress);
 }
 
 DatagramSocket::DatagramSocket (const String& hostName_, const int portNumber_,
@@ -493,6 +743,8 @@ DatagramSocket::DatagramSocket (const String& hostName_, const int portNumber_,
       handle (handle_),
       connected (true),
       allowBroadcast (false),
+      allowReuse (false),
+      localAddress (IpAddress::any),
       serverAddress (0)
 {
     SocketHelpers::initSockets();
@@ -524,17 +776,55 @@ void DatagramSocket::close()
     handle = -1;
 }
 
-bool DatagramSocket::bindToPort (const int port)
+bool DatagramSocket::bindToPort (const int port, const IpAddress& localAddress)
 {
-    return SocketHelpers::bindSocketToPort (handle, port);
+    return SocketHelpers::bindSocketToPort (handle, port, localAddress);
+}
+
+bool DatagramSocket::addMulticastMembership (const IpAddress& address)
+{
+    if (! connected)
+        return false;
+
+	struct ip_mreq mreq;
+	zerostruct<ip_mreq> (mreq);
+
+	mreq.imr_multiaddr.s_addr = address.toNetworkUint32();
+	mreq.imr_interface.s_addr = INADDR_ANY;
+
+    if (setsockopt(handle, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const char*)&mreq, sizeof(mreq)) == 0)
+        return true;
+    
+    return false;
+}
+
+bool DatagramSocket::dropMulticastMembership (const IpAddress& address)
+{
+    if (! connected)
+        return false;
+
+	struct ip_mreq mreq;
+	zerostruct<ip_mreq> (mreq);
+
+	mreq.imr_multiaddr.s_addr = address.toNetworkUint32();
+	mreq.imr_interface.s_addr = INADDR_ANY;
+
+    if (setsockopt(handle, IPPROTO_IP, IP_DROP_MEMBERSHIP, (const char*)&mreq, sizeof(mreq)) == 0)
+        return true;
+
+    return false;
 }
 
 bool DatagramSocket::connect (const String& remoteHostName,
                               const int remotePortNumber,
                               const int timeOutMillisecs)
 {
-    if (connected)
-        close();
+    if (serverAddress != 0)
+    {
+        hostName = String::empty;
+        delete static_cast <struct sockaddr*> (serverAddress);
+        serverAddress = 0;        
+    }
 
     hostName = remoteHostName;
     portNumber = remotePortNumber;
@@ -543,13 +833,20 @@ bool DatagramSocket::connect (const String& remoteHostName,
                                               remoteHostName, remotePortNumber,
                                               timeOutMillisecs);
 
-    if (! (connected && SocketHelpers::resetSocketOptions (handle, true, allowBroadcast)))
+    if (! (connected && SocketHelpers::resetSocketOptions (handle, true, allowBroadcast, allowReuse)))
     {
         close();
         return false;
     }
 
     return true;
+}
+
+bool DatagramSocket::connect (const IpAddress& remoteHost,
+                              const int remotePortNumber,
+                              const int timeOutMillisecs)
+{
+    return connect (remoteHost.toString(), remotePortNumber, timeOutMillisecs);
 }
 
 DatagramSocket* DatagramSocket::waitForNextConnection() const

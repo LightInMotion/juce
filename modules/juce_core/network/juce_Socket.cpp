@@ -336,6 +336,9 @@ namespace SocketHelpers
         return handle > 0
                 && setsockopt (handle, SOL_SOCKET, SO_RCVBUF, (const char*) &rcvBufSize, sizeof (rcvBufSize)) == 0
                 && setsockopt (handle, SOL_SOCKET, SO_SNDBUF, (const char*) &sndBufSize, sizeof (sndBufSize)) == 0
+#if defined (SO_NOSIGPIPE)
+                && setsockopt (handle, SOL_SOCKET, SO_NOSIGPIPE, (const char*) &one, sizeof (one)) == 0
+#endif
                 && setsockopt (handle, SOL_SOCKET, SO_REUSEADDR, (const char*) &reuse, sizeof 
                     (reuse)) == 0
                 && (isDatagram ? ((! allowBroadcast) || setsockopt (handle, SOL_SOCKET, SO_BROADCAST, (const char*) &one, sizeof (one)) == 0)

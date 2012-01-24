@@ -56,4 +56,17 @@ void JUCEApplicationBase::appWillTerminateByForce()
     MessageManager::deleteInstance();
 }
 
+// App is about to suspend on iOS
+void JUCEApplicationBase::appWillSuspend()
+{
+    if (appInstance != nullptr)
+        appInstance->suspendApp();
+}
+
+void JUCEApplicationBase::appWillResume()
+{
+    if (appInstance != nullptr)
+        appInstance->resumeApp();
+}
+
 END_JUCE_NAMESPACE

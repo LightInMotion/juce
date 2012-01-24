@@ -145,11 +145,18 @@ public:
     //==============================================================================
    #ifndef DOXYGEN
     static void appWillTerminateByForce();
+    
+    static void appWillSuspend();
+    static void appWillResume();
+    
     typedef JUCEApplicationBase* (*CreateInstanceFunction)();
     static CreateInstanceFunction createInstance;
 
 protected:
     virtual int shutdownApp() = 0;
+    
+    virtual void suspendApp() {};
+    virtual void resumeApp() {};
    #endif
 
 private:

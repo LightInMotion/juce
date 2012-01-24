@@ -32,6 +32,9 @@ END_JUCE_NAMESPACE
 - (void) applicationDidFinishLaunching: (UIApplication*) application;
 - (void) applicationWillTerminate: (UIApplication*) application;
 
+- (void)applicationDidEnterBackground: (UIApplication*) application;
+- (void)applicationWillEnterForeground: (UIApplication*) application;
+
 @end
 
 @implementation JuceAppStartupDelegate
@@ -48,6 +51,16 @@ END_JUCE_NAMESPACE
 - (void) applicationWillTerminate: (UIApplication*) application
 {
     JUCEApplicationBase::appWillTerminateByForce();
+}
+
+- (void)applicationDidEnterBackground: (UIApplication*) application
+{
+    JUCEApplicationBase::appWillSuspend();
+}
+
+- (void)applicationWillEnterForeground: (UIApplication*) application
+{
+    JUCEApplicationBase::appWillResume();
 }
 
 @end

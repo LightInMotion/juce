@@ -44,6 +44,16 @@ JUCE_JNI_CALLBACK (JuceAppActivity, launchApp, void, (JNIEnv* env, jobject activ
         exit (0);
 }
 
+JUCE_JNI_CALLBACK (JuceAppActivity, pauseApp, void, (JNIEnv* env, jobject activity))
+{
+    JUCEApplicationBase::appWillSuspend();
+}
+
+JUCE_JNI_CALLBACK (JuceAppActivity, resumeApp, void, (JNIEnv* env, jobject activity))
+{
+    JUCEApplicationBase::appWillResume();
+}
+
 JUCE_JNI_CALLBACK (JuceAppActivity, quitApp, void, (JNIEnv* env, jobject activity))
 {
     JUCEApplicationBase::appWillTerminateByForce();

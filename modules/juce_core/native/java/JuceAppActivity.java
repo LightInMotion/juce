@@ -72,6 +72,20 @@ public final class JuceAppActivity   extends Activity
         super.onDestroy();
     }
 
+    @Override
+    protected final void onPause()
+    {
+    	pauseApp();
+    	super.onPause();
+    }
+    
+    @Override
+    protected final void onResume()
+    {
+    	super.onResume();
+    	resumeApp();
+    }
+
     private void callAppLauncher()
     {
         launchApp (getApplicationInfo().publicSourceDir,
@@ -81,6 +95,8 @@ public final class JuceAppActivity   extends Activity
     //==============================================================================
     public native void launchApp (String appFile, String appDataDir);
     public native void quitApp();
+    public native void pauseApp();
+    public native void resumeApp();
     public native void setScreenSize (int screenWidth, int screenHeight);
 
     //==============================================================================

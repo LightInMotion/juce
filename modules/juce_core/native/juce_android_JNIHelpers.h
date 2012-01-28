@@ -332,6 +332,7 @@ extern ThreadLocalJNIEnvHolder threadLocalJNIEnvHolder;
  STATICMETHOD (printToConsole,   "printToConsole",       "(Ljava/lang/String;)V") \
  METHOD (createNewView,          "createNewView",        "(Z)Lcom/juce/ComponentPeerView;") \
  METHOD (deleteView,             "deleteView",           "(Lcom/juce/ComponentPeerView;)V") \
+ METHOD (launchURL,              "launchURL",            "(Ljava/lang/String;)V") \
  METHOD (postMessage,            "postMessage",          "(J)V") \
  METHOD (finish,                 "finish",               "()V") \
  METHOD (getClipboardContent,    "getClipboardContent",  "()Ljava/lang/String;") \

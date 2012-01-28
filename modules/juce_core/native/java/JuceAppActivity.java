@@ -28,6 +28,8 @@ package com.juce;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.content.Context;
 import android.view.ViewGroup;
@@ -104,6 +106,14 @@ public final class JuceAppActivity   extends Activity
     {
         android.util.Log.i ("Juce", s);
     }
+    
+    //==============================================================================
+    public final void launchURL (String s)
+    {
+    	Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(s));
+    	startActivity(browserIntent);    	
+    }
+    
 
     //==============================================================================
     public native void deliverMessage (long value);

@@ -267,6 +267,12 @@ public:
             context.extensions.glEnableVertexAttribArray (colourAttribute.attributeID);
         }
 
+        void unbindAttributes (OpenGLContext& context)
+        {
+            context.extensions.glDisableVertexAttribArray (positionAttribute.attributeID);
+            context.extensions.glDisableVertexAttribArray (colourAttribute.attributeID);
+        }
+
         OpenGLShaderProgram::Attribute positionAttribute, colourAttribute;
 
     private:
@@ -603,10 +609,11 @@ public:
                           "void main()"
                           "{"
                             JUCE_HIGHP " vec2 texturePos = " JUCE_MATRIX_TIMES_FRAGCOORD ";"
-                            "if (texturePos.x >= imageLimits.x"
-                                 "&& texturePos.y >= imageLimits.y"
-                                 "&& texturePos.x < imageLimits.z"
-                                 "&& texturePos.y < imageLimits.w)"
+                            "const float roundingError = 0.00001;"
+                            "if (texturePos.x >= imageLimits.x - roundingError"
+                                 "&& texturePos.y >= imageLimits.y - roundingError"
+                                 "&& texturePos.x <= imageLimits.z + roundingError"
+                                 "&& texturePos.y <= imageLimits.w + roundingError)"
                              "gl_FragColor = frontColour * " JUCE_GET_IMAGE_PIXEL ".a;"
                             "else "
                              "gl_FragColor = vec4 (0, 0, 0, 0);"
@@ -1236,10 +1243,10 @@ struct StateHelpers
 
         void setShader (const Rectangle<int>& bounds, ShaderQuadQueue& quadQueue, ShaderPrograms::ShaderBase& shader)
         {
-            if (activeShader != &(shader.program))
+            if (activeShader != &shader)
             {
                 quadQueue.flush();
-                activeShader = &(shader.program);
+                activeShader = &shader;
                 shader.program.use();
                 shader.bindAttributes (context);
 
@@ -1263,6 +1270,7 @@ struct StateHelpers
             if (activeShader != nullptr)
             {
                 quadQueue.flush();
+                activeShader->unbindAttributes (context);
                 activeShader = nullptr;
                 context.extensions.glUseProgram (0);
             }
@@ -1273,7 +1281,7 @@ struct StateHelpers
         bool canUseShaders;
 
     private:
-        OpenGLShaderProgram* activeShader;
+        ShaderPrograms::ShaderBase* activeShader;
         Rectangle<int> currentBounds;
 
         CurrentShader& operator= (const CurrentShader&);
@@ -3201,7 +3209,7 @@ private:
         return fillType.transformed (transform.getTransform());
     }
 
-    void fillEdgeTable (EdgeTable& et)
+    void fillEdgeTable (EdgeTable& et) const
     {
         clip->fillEdgeTable (et, getFillType());
     }

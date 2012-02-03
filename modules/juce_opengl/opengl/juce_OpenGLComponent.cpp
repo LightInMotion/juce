@@ -228,10 +228,11 @@ OpenGLComponent::OpenGLComponent (const int flags_)
       needToUpdateViewport (true),
       needToDeleteContext (false),
       threadStarted (false),
-      needToRepaint (true)
+      needToRepaint (true),
+      cachedImage (nullptr)
 {
     setOpaque (true);
-    setCachedComponentImage (cachedImage = new OpenGLCachedComponentImage (*this));
+    triggerRepaint();
     componentWatcher = new OpenGLComponentWatcher (*this);
 }
 
@@ -326,6 +327,7 @@ void OpenGLComponent::deleteContext()
     {
         if (context->makeActive())
         {
+            cachedImage = nullptr;
             setCachedComponentImage (nullptr);
             releaseOpenGLContext();
             context->makeInactive();
@@ -362,7 +364,11 @@ void OpenGLComponent::stopBackgroundThread()
 void OpenGLComponent::triggerRepaint()
 {
     // you mustn't set your own cached image object for an OpenGLComponent!
-    jassert (dynamic_cast<OpenGLCachedComponentImage*> (getCachedComponentImage()) == cachedImage);
+    jassert (cachedImage == nullptr
+              || dynamic_cast<OpenGLCachedComponentImage*> (getCachedComponentImage()) == cachedImage);
+
+    if (cachedImage == nullptr)
+        setCachedComponentImage (cachedImage = new OpenGLCachedComponentImage (*this));
 
     cachedImage->triggerRepaint();
 }
@@ -397,10 +403,8 @@ bool OpenGLComponent::performRender()
 
         renderOpenGL();
 
-        if (needToRepaint && (flags & allowSubComponents) != 0)
+        if ((flags & allowSubComponents) != 0)
         {
-            needToRepaint = false;
-
             contextLock.exit(); // (MM must be locked before the context lock)
             MessageManagerLock mmLock (renderThread);
             contextLock.enter();
@@ -414,7 +418,10 @@ bool OpenGLComponent::performRender()
             const Rectangle<int> bounds (getLocalBounds());
             OpenGLFrameBuffer& frameBuffer = cachedImage->getFrameBuffer (bounds.getWidth(), bounds.getHeight());
 
+            if (needToRepaint)
             {
+                needToRepaint = false;
+
                 RectangleList invalid (bounds);
                 invalid.subtract (cachedImage->validArea);
                 cachedImage->validArea = bounds;
@@ -442,8 +449,8 @@ bool OpenGLComponent::performRender()
             context->extensions.glActiveTexture (GL_TEXTURE0);
             glBindTexture (GL_TEXTURE_2D, frameBuffer.getTextureID());
 
-            context->copyTexture (bounds, Rectangle<int> (bounds.getWidth(),
-                                                          bounds.getHeight()));
+            jassert (bounds.getPosition() == Point<int>());
+            context->copyTexture (bounds, bounds);
             glBindTexture (GL_TEXTURE_2D, 0);
         }
 

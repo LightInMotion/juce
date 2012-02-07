@@ -191,7 +191,7 @@ bool IpAddress::operator!= (const IpAddress& other) const noexcept
     {
 	    struct ifconf cfg;
 	    size_t buffer_capacity;
-	    char* buffer = nullptr;
+        HeapBlock<char> buffer;
         int sock = -1;
         
 	    // Compute the sizes of ifreq structures
@@ -210,20 +210,10 @@ bool IpAddress::operator!= (const IpAddress& other) const noexcept
             // Ugly, old school...
             bool success = true;
             buffer_capacity = ifreq_size_in6;
-            buffer = NULL;
             do 
             {
                 buffer_capacity *= 2;
-                char* buffer_new = (char*)realloc (buffer, buffer_capacity);
-                if (buffer_new)
-                {
-                    buffer = buffer_new;
-                }
-                else
-                {
-                    success = false;
-                    break;
-                }
+                buffer.realloc (buffer_capacity);
                 
                 cfg.ifc_len = buffer_capacity;
                 cfg.ifc_buf = buffer;
@@ -261,8 +251,7 @@ bool IpAddress::operator!= (const IpAddress& other) const noexcept
 	    } while (0);
         
 	    // Free the buffer and close the socket if necessary
-	    if (buffer != nullptr)
-		    free(buffer);
+        buffer.free();
         
         if (sock >= 0)
             close(sock);

@@ -30,19 +30,13 @@
 
 
 //==============================================================================
-class JucerTreeViewBase   : public TreeViewItem,
-                            public TextEditorListener
+class JucerTreeViewBase   : public TreeViewItem
 {
-protected:
-    //==============================================================================
-    JucerTreeViewBase();
-    ~JucerTreeViewBase();
-
 public:
-    //==============================================================================
+    JucerTreeViewBase();
+
     int getItemWidth() const                                { return -1; }
     int getItemHeight() const                               { return 20; }
-    Font getFont() const;
 
     void paintItem (Graphics& g, int width, int height);
     void paintOpenCloseButton (Graphics& g, int width, int height, bool isMouseOver);
@@ -50,23 +44,19 @@ public:
     void itemClicked (const MouseEvent& e);
 
     //==============================================================================
+    virtual Font getFont() const;
     virtual String getRenamingName() const = 0;
     virtual String getDisplayName() const = 0;
     virtual void setName (const String& newName) = 0;
     virtual bool isMissing() = 0;
     virtual const Drawable* getIcon() const = 0;
-    virtual void createLeftEdgeComponents (OwnedArray<Component>& components) = 0;
+    virtual void createLeftEdgeComponents (OwnedArray<Component>&) {}
+    virtual Component* createRightEdgeComponent()   { return nullptr; }
 
     virtual void showPopupMenu();
     virtual void showMultiSelectionPopupMenu();
 
     virtual void showRenameBox();
-
-    // Text editor listener for renaming..
-    void textEditorTextChanged (TextEditor&)                {}
-    void textEditorReturnKeyPressed (TextEditor& editor)    { editor.exitModalState (1); }
-    void textEditorEscapeKeyPressed (TextEditor& editor)    { editor.exitModalState (0); }
-    void textEditorFocusLost (TextEditor& editor)           { editor.exitModalState (0); }
 
     //==============================================================================
     // To handle situations where an item gets deleted before openness is
@@ -85,10 +75,7 @@ public:
         }
     };
 
-    //==============================================================================
-private:
-    int numLeftHandComps;
-    int getTextX() const;
+    int textX;
 };
 
 

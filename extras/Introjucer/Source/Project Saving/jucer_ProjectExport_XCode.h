@@ -28,6 +28,19 @@
 
 #include "jucer_ProjectExporter.h"
 
+namespace
+{
+    const char* const osxVersionDefault         = "default";
+    const char* const osxVersion10_4            = "10.4 SDK";
+    const char* const osxVersion10_5            = "10.5 SDK";
+    const char* const osxVersion10_6            = "10.6 SDK";
+
+    const char* const osxArch_Default           = "default";
+    const char* const osxArch_Native            = "Native";
+    const char* const osxArch_32BitUniversal    = "32BitUniversal";
+    const char* const osxArch_64BitUniversal    = "64BitUniversal";
+    const char* const osxArch_64Bit             = "64BitIntel";
+}
 
 //==============================================================================
 class XCodeProjectExporter  : public ProjectExporter
@@ -64,6 +77,7 @@ public:
 
     //==============================================================================
     Value getObjCSuffix()       { return getSetting ("objCExtraSuffix"); }
+    Value getPListToMerge()     { return getSetting ("customPList"); }
 
     int getLaunchPreferenceOrderForCurrentOS()
     {
@@ -89,27 +103,33 @@ public:
     bool isOSX() const                      { return ! iOS; }
     bool canCopeWithDuplicateFiles()        { return true; }
 
-    void createPropertyEditors (Array <PropertyComponent*>& props)
+    void createPropertyEditors (PropertyListBuilder& props)
     {
         ProjectExporter::createPropertyEditors (props);
 
-        props.add (new TextPropertyComponent (getObjCSuffix(), "Objective-C class name suffix", 64, false));
-        props.getLast()->setTooltip ("Because objective-C linkage is done by string-matching, you can get horrible linkage mix-ups when different modules containing the "
-                                     "same class-names are loaded simultaneously. This setting lets you provide a unique string that will be used in naming the obj-C classes in your executable to avoid this.");
+        props.add (new TextPropertyComponent (getObjCSuffix(), "Objective-C class name suffix", 64, false),
+                   "Because objective-C linkage is done by string-matching, you can get horrible linkage mix-ups when different modules containing the "
+                   "same class-names are loaded simultaneously. This setting lets you provide a unique string that will be used in naming "
+                   "the obj-C classes in your executable to avoid this.");
 
         if (projectType.isGUIApplication() && ! iOS)
         {
-            props.add (new TextPropertyComponent (getSetting ("documentExtensions"), "Document file extensions", 128, false));
-            props.getLast()->setTooltip ("A comma-separated list of file extensions for documents that your app can open.");
+            props.add (new TextPropertyComponent (getSetting ("documentExtensions"), "Document file extensions", 128, false),
+                       "A comma-separated list of file extensions for documents that your app can open.");
         }
         else if (iOS)
         {
-            props.add (new BooleanPropertyComponent (getSetting ("UIFileSharingEnabled"), "File Sharing Enabled", "Enabled"));
-            props.getLast()->setTooltip ("Enable this to expose your app's files to iTunes.");
+            props.add (new BooleanPropertyComponent (getSetting ("UIFileSharingEnabled"), "File Sharing Enabled", "Enabled"),
+                       "Enable this to expose your app's files to iTunes.");
 
-            props.add (new BooleanPropertyComponent (getSetting ("UIStatusBarHidden"), "Status Bar Hidden", "Enabled"));
-            props.getLast()->setTooltip ("Enable this to disable the status bar in your app.");
+            props.add (new BooleanPropertyComponent (getSetting ("UIStatusBarHidden"), "Status Bar Hidden", "Enabled"),
+                       "Enable this to disable the status bar in your app.");
         }
+
+        props.add (new TextPropertyComponent (getPListToMerge(), "Custom PList", 8192, true),
+                   "You can paste the contents of an XML PList file in here, and the settings that it contains will override any "
+                   "settings that the Introjucer creates. BEWARE! When doing this, be careful to remove from the XML any "
+                   "values that you DO want the introjucer to change!");
     }
 
     void launchProject()
@@ -138,6 +158,55 @@ public:
         }
 
         writeInfoPlistFile();
+    }
+
+protected:
+    //==============================================================================
+    class XcodeBuildConfiguration  : public BuildConfiguration
+    {
+    public:
+        XcodeBuildConfiguration (Project& project, const ValueTree& settings)
+            : BuildConfiguration (project, settings)
+        {
+        }
+
+        Value getMacSDKVersion() const                      { return getValue (Ids::osxSDK); }
+        Value getMacCompatibilityVersion() const            { return getValue (Ids::osxCompatibility); }
+        Value getMacArchitecture() const                    { return getValue (Ids::osxArchitecture); }
+
+        void createPropertyEditors (PropertyListBuilder& props)
+        {
+            createBasicPropertyEditors (props);
+
+            if (getMacSDKVersion().toString().isEmpty())
+                getMacSDKVersion() = osxVersionDefault;
+
+            const char* osxVersions[] = { "Use Default", osxVersion10_4, osxVersion10_5, osxVersion10_6, 0 };
+            const char* osxVersionValues[] = { osxVersionDefault, osxVersion10_4, osxVersion10_5, osxVersion10_6, 0 };
+
+            props.add (new ChoicePropertyComponent (getMacSDKVersion(), "OSX Base SDK Version", StringArray (osxVersions), Array<var> (osxVersionValues)),
+                       "The version of OSX to link against in the XCode build.");
+
+            if (getMacCompatibilityVersion().toString().isEmpty())
+                getMacCompatibilityVersion() = osxVersionDefault;
+
+            props.add (new ChoicePropertyComponent (getMacCompatibilityVersion(), "OSX Compatibility Version", StringArray (osxVersions), Array<var> (osxVersionValues)),
+                       "The minimum version of OSX that the target binary will be compatible with.");
+
+            const char* osxArch[] = { "Use Default", "Native architecture of build machine", "Universal Binary (32-bit)", "Universal Binary (64-bit)", "64-bit Intel", 0 };
+            const char* osxArchValues[] = { osxArch_Default, osxArch_Native, osxArch_32BitUniversal, osxArch_64BitUniversal, osxArch_64Bit, 0 };
+
+            if (getMacArchitecture().toString().isEmpty())
+                getMacArchitecture() = osxArch_Default;
+
+            props.add (new ChoicePropertyComponent (getMacArchitecture(), "OSX Architecture", StringArray (osxArch), Array<var> (osxArchValues)),
+                       "The type of OSX binary that will be produced.");
+        }
+    };
+
+    BuildConfiguration::Ptr createBuildConfig (const ValueTree& settings) const
+    {
+        return new XcodeBuildConfiguration (project, settings);
     }
 
 private:
@@ -208,12 +277,12 @@ private:
             addGroup (createID ("__mainsourcegroup"), "Source", topLevelGroupIDs);
         }
 
-        for (int i = 0; i < configs.size(); ++i)
+        for (int i = 0; i < getNumConfigurations(); ++i)
         {
-            const Project::BuildConfiguration& config = configs.getReference(i);
+            const BuildConfiguration::Ptr config (getConfiguration (i));
 
-            addProjectConfig (config.getName().getValue(), getProjectSettings (config));
-            addTargetConfig  (config.getName().getValue(), getTargetSettings (config));
+            addProjectConfig (config->getName().getValue(), getProjectSettings (*config));
+            addTargetConfig  (config->getName().getValue(), getTargetSettings (dynamic_cast <XcodeBuildConfiguration&> (*config)));
         }
 
         addConfigList (projectConfigs, createID ("__projList"));
@@ -344,8 +413,15 @@ private:
         if (! xcodeCreatePList)
             return;
 
-        XmlElement plist ("plist");
-        XmlElement* dict = plist.createNewChildElement ("dict");
+        ScopedPointer<XmlElement> plist (XmlDocument::parse (getPListToMerge().toString()));
+
+        if (plist == nullptr || ! plist->hasTagName ("plist"))
+            plist = new XmlElement ("plist");
+
+        XmlElement* dict = plist->getChildByName ("dict");
+
+        if (dict == nullptr)
+            dict = plist->createNewChildElement ("dict");
 
         if (iOS)
             addPlistDictionaryKeyBool (dict, "LSRequiresIPhoneOS", true);
@@ -394,12 +470,12 @@ private:
             dict->addChildElement (new XmlElement (xcodeExtraPListEntries.getReference(i)));
 
         MemoryOutputStream mo;
-        plist.writeToStream (mo, "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">");
+        plist->writeToStream (mo, "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">");
 
         overwriteFileIfDifferentOrThrow (infoPlistFile, mo);
     }
 
-    StringArray getHeaderSearchPaths (const Project::BuildConfiguration& config)
+    StringArray getHeaderSearchPaths (const BuildConfiguration& config)
     {
         StringArray searchPaths (extraSearchPaths);
         searchPaths.addArray (config.getHeaderSearchPaths());
@@ -420,7 +496,7 @@ private:
         librarySearchPaths.add (sanitisePath (searchPath));
     }
 
-    void getLinkerFlags (const Project::BuildConfiguration& config, StringArray& flags, StringArray& librarySearchPaths)
+    void getLinkerFlags (const BuildConfiguration& config, StringArray& flags, StringArray& librarySearchPaths)
     {
         if (xcodeIsBundle)
             flags.add ("-bundle");
@@ -435,7 +511,7 @@ private:
         flags.removeEmptyStrings (true);
     }
 
-    StringArray getProjectSettings (const Project::BuildConfiguration& config)
+    StringArray getProjectSettings (const BuildConfiguration& config)
     {
         StringArray s;
         s.add ("ALWAYS_SEARCH_USER_PATHS = NO");
@@ -475,15 +551,15 @@ private:
         return s;
     }
 
-    StringArray getTargetSettings (const Project::BuildConfiguration& config)
+    StringArray getTargetSettings (const XcodeBuildConfiguration& config)
     {
         StringArray s;
 
         const String arch (config.getMacArchitecture().toString());
-        if (arch == Project::BuildConfiguration::osxArch_Native)                s.add ("ARCHS = \"$(ARCHS_NATIVE)\"");
-        else if (arch == Project::BuildConfiguration::osxArch_32BitUniversal)   s.add ("ARCHS = \"$(ARCHS_STANDARD_32_BIT)\"");
-        else if (arch == Project::BuildConfiguration::osxArch_64BitUniversal)   s.add ("ARCHS = \"$(ARCHS_STANDARD_32_64_BIT)\"");
-        else if (arch == Project::BuildConfiguration::osxArch_64Bit)            s.add ("ARCHS = \"$(ARCHS_STANDARD_64_BIT)\"");
+        if (arch == osxArch_Native)                s.add ("ARCHS = \"$(ARCHS_NATIVE)\"");
+        else if (arch == osxArch_32BitUniversal)   s.add ("ARCHS = \"$(ARCHS_STANDARD_32_BIT)\"");
+        else if (arch == osxArch_64BitUniversal)   s.add ("ARCHS = \"$(ARCHS_STANDARD_32_64_BIT)\"");
+        else if (arch == osxArch_64Bit)            s.add ("ARCHS = \"$(ARCHS_STANDARD_64_BIT)\"");
 
         s.add ("HEADER_SEARCH_PATHS = \"" + replacePreprocessorTokens (config, getHeaderSearchPaths (config).joinIntoString (" ")) + " $(inherited)\"");
         s.add ("GCC_OPTIMIZATION_LEVEL = " + config.getGCCOptimisationFlag());
@@ -528,28 +604,29 @@ private:
             const String sdk (config.getMacSDKVersion().toString());
             const String sdkCompat (config.getMacCompatibilityVersion().toString());
 
-            if (sdk == Project::BuildConfiguration::osxVersion10_4)
+            if (sdk == osxVersion10_4)
             {
                 s.add ("SDKROOT = macosx10.4");
                 gccVersion = "4.0";
             }
-            else if (sdk == Project::BuildConfiguration::osxVersion10_5)
+            else if (sdk == osxVersion10_5)
             {
                 s.add ("SDKROOT = macosx10.5");
             }
-            else if (sdk == Project::BuildConfiguration::osxVersion10_6)
+            else if (sdk == osxVersion10_6)
             {
                 s.add ("SDKROOT = macosx10.6");
             }
 
-            if (sdkCompat == Project::BuildConfiguration::osxVersion10_4)       s.add ("MACOSX_DEPLOYMENT_TARGET = 10.4");
-            else if (sdkCompat == Project::BuildConfiguration::osxVersion10_5)  s.add ("MACOSX_DEPLOYMENT_TARGET = 10.5");
-            else if (sdkCompat == Project::BuildConfiguration::osxVersion10_6)  s.add ("MACOSX_DEPLOYMENT_TARGET = 10.6");
+            if (sdkCompat == osxVersion10_4)       s.add ("MACOSX_DEPLOYMENT_TARGET = 10.4");
+            else if (sdkCompat == osxVersion10_5)  s.add ("MACOSX_DEPLOYMENT_TARGET = 10.5");
+            else if (sdkCompat == osxVersion10_6)  s.add ("MACOSX_DEPLOYMENT_TARGET = 10.6");
 
             s.add ("MACOSX_DEPLOYMENT_TARGET_ppc = 10.4");
         }
 
         s.add ("GCC_VERSION = " + gccVersion);
+        s.add ("CLANG_CXX_LANGUAGE_STANDARD = \"c++0x\"");
 
         {
             StringArray linkerFlags, librarySearchPaths;
@@ -671,7 +748,24 @@ private:
 
     static void addPlistDictionaryKey (XmlElement* xml, const String& key, const String& value)
     {
-        xml->createNewChildElement ("key")->addTextElement (key);
+        forEachXmlChildElementWithTagName (*xml, e, "key")
+        {
+            if (e->getAllSubText().trim().equalsIgnoreCase (key))
+            {
+                if (e->getNextElement() != nullptr && e->getNextElement()->hasTagName ("key"))
+                {
+                    // try to fix broken plist format..
+                    xml->removeChildElement (e, true);
+                    break;
+                }
+                else
+                {
+                    return; // (value already exists)
+                }
+            }
+        }
+
+        xml->createNewChildElement ("key")   ->addTextElement (key);
         xml->createNewChildElement ("string")->addTextElement (value);
     }
 
@@ -856,7 +950,7 @@ private:
     {
         jassert (xcodeFileType.isNotEmpty());
         jassert (xcodeBundleExtension.isEmpty() || xcodeBundleExtension.startsWithChar('.'));
-        String productName (configs.getReference(0).getTargetBinaryName().toString());
+        String productName (getConfiguration(0)->getTargetBinaryName().toString());
 
         if (xcodeFileType == "archive.ar")
             productName = getLibbedFilename (productName);

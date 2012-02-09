@@ -49,26 +49,63 @@ void showUTF8ToolWindow();
 // Start a callout modally, which will delete the content comp when it's dismissed.
 void launchAsyncCallOutBox (Component& attachTo, Component* content);
 
+
 //==============================================================================
-class PropertyPanelWithTooltips  : public Component,
-                                   public Timer
+class RolloverHelpComp   : public Component,
+                           private Timer
 {
 public:
-    PropertyPanelWithTooltips();
-    ~PropertyPanelWithTooltips();
+    RolloverHelpComp();
 
     void paint (Graphics& g);
-    void resized();
     void timerCallback();
-
-    PropertyPanel panel;
 
 private:
     Component* lastComp;
     String lastTip;
 
-    Rectangle<int> getTipArea() const;
-    String findTip (Component* c);
+    static String findTip (Component*);
+};
+
+//==============================================================================
+class PropertyPanelWithTooltips  : public Component
+{
+public:
+    PropertyPanelWithTooltips();
+
+    void resized();
+
+    PropertyPanel panel;
+    RolloverHelpComp rollover;
+};
+
+//==============================================================================
+class PropertyListBuilder
+{
+public:
+    PropertyListBuilder() {}
+
+    void add (PropertyComponent* propertyComp)
+    {
+        components.add (propertyComp);
+    }
+
+    void add (PropertyComponent* propertyComp, const String& tooltip)
+    {
+        propertyComp->setTooltip (tooltip);
+        add (propertyComp);
+    }
+
+    void setPreferredHeight (int height)
+    {
+        for (int j = components.size(); --j >= 0;)
+            components.getUnchecked(j)->setPreferredHeight (height);
+    }
+
+    Array <PropertyComponent*> components;
+
+private:
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PropertyListBuilder);
 };
 
 //==============================================================================

@@ -7,7 +7,7 @@
   the "//[xyz]" and "//[/xyz]" sections will be retained when the file is loaded
   and re-saved.
 
-  Created for JUCE version: JUCE v2.0.9
+  Created for JUCE version: JUCE v2.0.16
 
   ------------------------------------------------------------------------------
 
@@ -41,33 +41,30 @@ public:
     ~ProjectInformationComponent();
 
     //==============================================================================
-    //[UserMethods]     -- You can add your own custom methods in this section.
+    //[UserMethods]
     void changeListenerCallback (ChangeBroadcaster*);
     //[/UserMethods]
 
-    void resized();
     void buttonClicked (Button* buttonThatWasClicked);
     void paint (Graphics& g);
 
-
-
 private:
     //==============================================================================
-    //[UserVariables]   -- You can add your own custom variables in this section.
+    //[UserVariables]
     Project& project;
-    class RolloverHelpComp;
     //[/UserVariables]
 
     //==============================================================================
     Viewport viewport;
     TextButton openProjectButton;
     TextButton saveAndOpenButton;
-    ScopedPointer<RolloverHelpComp> rollover;
+    RolloverHelpComp rollover;
 
+    void initialiseComponentState();
+    static ValueTree getComponentState();
 
     //==============================================================================
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ProjectInformationComponent);
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ProjectInformationComponent)
 };
-
 
 #endif   // __JUCER_PROJECTINFORMATIONCOMPONENT_H_30FFCD07__

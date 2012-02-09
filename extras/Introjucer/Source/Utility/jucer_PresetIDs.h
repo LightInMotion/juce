@@ -61,6 +61,8 @@ namespace Ids
     DECLARE_ID (osxSDK);
     DECLARE_ID (osxCompatibility);
     DECLARE_ID (osxArchitecture);
+    DECLARE_ID (winArchitecture);
+    DECLARE_ID (winWarningLevel);
     DECLARE_ID (jucerVersion);
     DECLARE_ID (projectType);
     DECLARE_ID (prebuildCommand);
@@ -76,7 +78,9 @@ namespace Ids
     DECLARE_ID (createCallback);
     DECLARE_ID (parentClasses);
     DECLARE_ID (constructorParams);
+    DECLARE_ID (objectConstructionArgs);
     DECLARE_ID (memberInitialisers);
+    DECLARE_ID (canBeAggregated);
     DECLARE_ID (rootItemVisible);
     DECLARE_ID (openByDefault);
     DECLARE_ID (locked);

@@ -516,13 +516,21 @@ public:
                 {
                     // read the format chunk
                     const unsigned short format = (unsigned short) input->readShort();
-                    const short numChans = input->readShort();
+                    numChannels = (unsigned int) input->readShort();
                     sampleRate = input->readInt();
                     const int bytesPerSec = input->readInt();
+                    input->skipNextBytes (2);
+                    bitsPerSample = (unsigned int) (int) input->readShort();
 
-                    numChannels = (unsigned int) numChans;
-                    bytesPerFrame = bytesPerSec / (int)sampleRate;
-                    bitsPerSample = (unsigned int) (8 * bytesPerFrame / numChans);
+                    if (bitsPerSample > 64)
+                    {
+                        bytesPerFrame = bytesPerSec / (int) sampleRate;
+                        bitsPerSample = 8 * bytesPerFrame / numChannels;
+                    }
+                    else
+                    {
+                        bytesPerFrame = numChannels * bitsPerSample / 8;
+                    }
 
                     if (format == 3)
                     {
@@ -536,7 +544,7 @@ public:
                         }
                         else
                         {
-                            input->skipNextBytes (12); // skip over blockAlign, bitsPerSample and speakerPosition mask
+                            input->skipNextBytes (10); // skip over bitsPerSample and speakerPosition mask
                             ExtensibleWavSubFormat subFormat;
                             subFormat.data1 = (uint32) input->readInt();
                             subFormat.data2 = (uint16) input->readShort();

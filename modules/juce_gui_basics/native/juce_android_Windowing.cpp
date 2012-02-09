@@ -95,12 +95,15 @@ class AndroidComponentPeer  : public ComponentPeer
 {
 public:
     AndroidComponentPeer (Component* const component, const int windowStyleFlags)
-        : ComponentPeer (component, windowStyleFlags),
-          view (android.activity.callObjectMethod (JuceAppActivity.createNewView, component->isOpaque())),
-          usingAndroidGraphics (false),
-          fullScreen (false),
-          sizeAllocated (0)
+    : ComponentPeer (component, windowStyleFlags),
+    usingAndroidGraphics (false),
+    fullScreen (false),
+    sizeAllocated (0)
     {
+        GlobalRef gr (android.activity.callObjectMethod (iPanelAppActivity.createNewView, component->isOpaque()));
+        view = gr;
+        gr.clear();
+        
         if (isFocused())
             handleFocusGain();
     }
@@ -484,17 +487,17 @@ public:
    #endif
 
     //==============================================================================
-    static AndroidComponentPeer* findPeerForJavaView (jobject viewToFind)
+    static AndroidComponentPeer* findPeerForJavaView (JNIEnv* env, jobject viewToFind)
     {
         for (int i = getNumPeers(); --i >= 0;)
         {
             AndroidComponentPeer* const ap = static_cast <AndroidComponentPeer*> (getPeer(i));
             jassert (dynamic_cast <AndroidComponentPeer*> (getPeer(i)) != 0);
-
-            if (ap->view == viewToFind)
+            
+            if (env->IsSameObject (viewToFind, ap->view.get()))
                 return ap;
         }
-
+        
         return nullptr;
     }
 
@@ -570,17 +573,17 @@ Point<int> AndroidComponentPeer::lastMousePos;
 #define JUCE_VIEW_CALLBACK(returnType, javaMethodName, params, juceMethodInvocation) \
   JUCE_JNI_CALLBACK (ComponentPeerView, javaMethodName, returnType, params) \
   { \
-      AndroidComponentPeer* const peer = AndroidComponentPeer::findPeerForJavaView (view); \
+      AndroidComponentPeer* const peer = AndroidComponentPeer::findPeerForJavaView (env, view); \
       if (peer != nullptr) \
           peer->juceMethodInvocation; \
   }
 
 JUCE_VIEW_CALLBACK (void, handlePaint,      (JNIEnv* env, jobject view, jobject canvas),                handlePaintCallback (env, canvas))
-JUCE_VIEW_CALLBACK (void, handleMouseDown,  (JNIEnv*, jobject view, jfloat x, jfloat y, jlong time),    handleMouseDownCallback ((float) x, (float) y, (int64) time))
-JUCE_VIEW_CALLBACK (void, handleMouseDrag,  (JNIEnv*, jobject view, jfloat x, jfloat y, jlong time),    handleMouseDragCallback ((float) x, (float) y, (int64) time))
-JUCE_VIEW_CALLBACK (void, handleMouseUp,    (JNIEnv*, jobject view, jfloat x, jfloat y, jlong time),    handleMouseUpCallback ((float) x, (float) y, (int64) time))
-JUCE_VIEW_CALLBACK (void, viewSizeChanged,  (JNIEnv*, jobject view),                                    handleMovedOrResized())
-JUCE_VIEW_CALLBACK (void, focusChanged,     (JNIEnv*, jobject view, jboolean hasFocus),                 handleFocusChangeCallback (hasFocus))
+JUCE_VIEW_CALLBACK (void, handleMouseDown,  (JNIEnv* env, jobject view, jfloat x, jfloat y, jlong time),    handleMouseDownCallback ((float) x, (float) y, (int64) time))
+JUCE_VIEW_CALLBACK (void, handleMouseDrag,  (JNIEnv* env, jobject view, jfloat x, jfloat y, jlong time),    handleMouseDragCallback ((float) x, (float) y, (int64) time))
+JUCE_VIEW_CALLBACK (void, handleMouseUp,    (JNIEnv* env, jobject view, jfloat x, jfloat y, jlong time),    handleMouseUpCallback ((float) x, (float) y, (int64) time))
+JUCE_VIEW_CALLBACK (void, viewSizeChanged,  (JNIEnv* env, jobject view),                                    handleMovedOrResized())
+JUCE_VIEW_CALLBACK (void, focusChanged,     (JNIEnv* env, jobject view, jboolean hasFocus),                 handleFocusChangeCallback (hasFocus))
 
 //==============================================================================
 ComponentPeer* Component::createNewPeer (int styleFlags, void*)

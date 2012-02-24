@@ -54,7 +54,7 @@
 // #error "You need to set either the JUCE_PLUGINHOST_AU anr/or JUCE_PLUGINHOST_VST flags if you're using this module!"
 #endif
 
-#ifndef JUCE_SUPPORT_CARBON
+#if ! (defined (JUCE_SUPPORT_CARBON) || JUCE_64BIT)
  #define JUCE_SUPPORT_CARBON 1
 #endif
 
@@ -62,7 +62,8 @@
 //=============================================================================
 #include "../juce_core/system/juce_StandardHeader.h"
 
-BEGIN_JUCE_NAMESPACE
+namespace juce
+{
 
 // START_AUTOINCLUDE processors, format, format_types, scanning
 #ifndef __JUCE_AUDIOPLAYHEAD_JUCEHEADER__
@@ -119,6 +120,6 @@ BEGIN_JUCE_NAMESPACE
 #endif
 // END_AUTOINCLUDE
 
-END_JUCE_NAMESPACE
+}
 
 #endif   // __JUCE_AUDIO_PROCESSORS_JUCEHEADER__

@@ -23,9 +23,7 @@
   ==============================================================================
 */
 
-BEGIN_JUCE_NAMESPACE
 
-//==============================================================================
 #if JUCE_DEBUG
 
 struct DanglingStreamChecker
@@ -292,14 +290,20 @@ OutputStream& JUCE_CALLTYPE operator<< (OutputStream& stream, const char* const 
 
 OutputStream& JUCE_CALLTYPE operator<< (OutputStream& stream, const MemoryBlock& data)
 {
-    stream.write (data.getData(), (int) data.getSize());
+    if (data.getSize() > 0)
+        stream.write (data.getData(), (int) data.getSize());
+
     return stream;
 }
 
 OutputStream& JUCE_CALLTYPE operator<< (OutputStream& stream, const File& fileToRead)
 {
     FileInputStream in (fileToRead);
-    return stream << in;
+
+    if (in.openedOk())
+        return stream << in;
+
+    return stream;
 }
 
 OutputStream& JUCE_CALLTYPE operator<< (OutputStream& stream, InputStream& streamToRead)
@@ -312,6 +316,3 @@ OutputStream& JUCE_CALLTYPE operator<< (OutputStream& stream, const NewLine&)
 {
     return stream << stream.getNewLineString();
 }
-
-
-END_JUCE_NAMESPACE

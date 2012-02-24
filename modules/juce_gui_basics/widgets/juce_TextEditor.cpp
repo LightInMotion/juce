@@ -23,9 +23,7 @@
   ==============================================================================
 */
 
-BEGIN_JUCE_NAMESPACE
 
-//==============================================================================
 // a word or space that can't be broken down any further
 struct TextAtom
 {
@@ -1755,9 +1753,7 @@ void TextEditor::paintOverChildren (Graphics& g)
         else
         {
             g.drawText (textToShowWhenEmpty,
-                        leftIndent, topIndent,
-                        viewport->getWidth() - leftIndent,
-                        viewport->getHeight() - topIndent,
+                        leftIndent, 0, viewport->getWidth() - leftIndent, getHeight(),
                         Justification::centredLeft, true);
         }
     }
@@ -2674,5 +2670,3 @@ void TextEditor::refreshFromValueTree (const ValueTree& state, ComponentBuilder&
 
     setText (state [Ids::text].toString());
 }
-
-END_JUCE_NAMESPACE

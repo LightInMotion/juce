@@ -30,8 +30,7 @@ extern AppFocusChangeCallback appFocusChangeCallback;
 typedef bool (*CheckEventBlockedByModalComps) (NSEvent*);
 extern CheckEventBlockedByModalComps isEventBlockedByModalComps;
 
-//==============================================================================
-END_JUCE_NAMESPACE
+} // (juce namespace)
 
 @interface NSEvent (JuceDeviceDelta)
  - (CGFloat) deviceDeltaX;
@@ -141,7 +140,8 @@ END_JUCE_NAMESPACE
 - (void) zoom: (id) sender;
 @end
 
-BEGIN_JUCE_NAMESPACE
+namespace juce
+{
 
 //==============================================================================
 class NSViewComponentPeer  : public ComponentPeer
@@ -419,9 +419,9 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NSViewComponentPeer);
 };
 
-//==============================================================================
-END_JUCE_NAMESPACE
+} // (juce namespace)
 
+//==============================================================================
 @implementation JuceNSView
 
 - (JuceNSView*) initWithOwner: (NSViewComponentPeer*) owner_
@@ -851,7 +851,8 @@ END_JUCE_NAMESPACE
 
 //==============================================================================
 //==============================================================================
-BEGIN_JUCE_NAMESPACE
+namespace juce
+{
 
 //==============================================================================
 ModifierKeys NSViewComponentPeer::currentModifiers;
@@ -1780,15 +1781,30 @@ void Desktop::createMouseInputSources()
 void Desktop::setKioskComponent (Component* kioskModeComponent, bool enableOrDisable, bool allowMenusAndBars)
 {
    #if defined (MAC_OS_X_VERSION_10_6) && MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_6
-    if (enableOrDisable)
+
+   #if defined (MAC_OS_X_VERSION_10_7) && MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_7
+    NSViewComponentPeer* peer = dynamic_cast<NSViewComponentPeer*> (kioskModeComponent->getPeer());
+
+    if (peer != nullptr
+         && peer->hasNativeTitleBar()
+         && [peer->window respondsToSelector: @selector (toggleFullScreen:)])
     {
-        [NSApp setPresentationOptions: (allowMenusAndBars ? (NSApplicationPresentationAutoHideDock | NSApplicationPresentationAutoHideMenuBar)
-                                                          : (NSApplicationPresentationHideDock | NSApplicationPresentationHideMenuBar))];
-        kioskModeComponent->setBounds (Desktop::getInstance().getMainMonitorArea (false));
+        [peer->window performSelector: @selector (toggleFullScreen:)
+                           withObject: [NSNumber numberWithBool: (BOOL) enableOrDisable]];
     }
     else
+   #endif
     {
-        [NSApp setPresentationOptions: NSApplicationPresentationDefault];
+        if (enableOrDisable)
+        {
+            [NSApp setPresentationOptions: (allowMenusAndBars ? (NSApplicationPresentationAutoHideDock | NSApplicationPresentationAutoHideMenuBar)
+                                                              : (NSApplicationPresentationHideDock | NSApplicationPresentationHideMenuBar))];
+            kioskModeComponent->setBounds (Desktop::getInstance().getMainMonitorArea (false));
+        }
+        else
+        {
+            [NSApp setPresentationOptions: NSApplicationPresentationDefault];
+        }
     }
    #elif JUCE_SUPPORT_CARBON
     if (enableOrDisable)

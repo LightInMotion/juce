@@ -34,6 +34,7 @@ namespace
     const char* const osxVersion10_4            = "10.4 SDK";
     const char* const osxVersion10_5            = "10.5 SDK";
     const char* const osxVersion10_6            = "10.6 SDK";
+    const char* const osxVersion10_7            = "10.7 SDK";
 
     const char* const osxArch_Default           = "default";
     const char* const osxArch_Native            = "Native";
@@ -72,12 +73,13 @@ public:
         else if (settings.hasType (getValueTreeTypeName (true)))
             return new XCodeProjectExporter (project, settings, true);
 
-        return 0;
+        return nullptr;
     }
 
     //==============================================================================
     Value getObjCSuffix()       { return getSetting ("objCExtraSuffix"); }
     Value getPListToMerge()     { return getSetting ("customPList"); }
+    Value getExtraFrameworks()  { return getSetting (Ids::extraFrameworks); }
 
     int getLaunchPreferenceOrderForCurrentOS()
     {
@@ -130,6 +132,10 @@ public:
                    "You can paste the contents of an XML PList file in here, and the settings that it contains will override any "
                    "settings that the Introjucer creates. BEWARE! When doing this, be careful to remove from the XML any "
                    "values that you DO want the introjucer to change!");
+
+        props.add (new TextPropertyComponent (getExtraFrameworks(), "Extra Frameworks", 2048, false),
+                   "A comma-separated list of extra frameworks that should be added to the build. "
+                   "(Don't include the .framework extension in the name)");
     }
 
     void launchProject()
@@ -138,7 +144,7 @@ public:
     }
 
     //==============================================================================
-    void create()
+    void create (const OwnedArray<LibraryModule>&)
     {
         infoPlistFile = getTargetFolder().getChildFile ("Info.plist");
 
@@ -173,6 +179,7 @@ protected:
         Value getMacSDKVersion() const                      { return getValue (Ids::osxSDK); }
         Value getMacCompatibilityVersion() const            { return getValue (Ids::osxCompatibility); }
         Value getMacArchitecture() const                    { return getValue (Ids::osxArchitecture); }
+        Value getCustomXcodeFlags() const                   { return getValue (Ids::customXcodeFlags); }
 
         void createPropertyEditors (PropertyListBuilder& props)
         {
@@ -181,8 +188,8 @@ protected:
             if (getMacSDKVersion().toString().isEmpty())
                 getMacSDKVersion() = osxVersionDefault;
 
-            const char* osxVersions[] = { "Use Default", osxVersion10_4, osxVersion10_5, osxVersion10_6, 0 };
-            const char* osxVersionValues[] = { osxVersionDefault, osxVersion10_4, osxVersion10_5, osxVersion10_6, 0 };
+            const char* osxVersions[] = { "Use Default", osxVersion10_4, osxVersion10_5, osxVersion10_6, osxVersion10_7, 0 };
+            const char* osxVersionValues[] = { osxVersionDefault, osxVersion10_4, osxVersion10_5, osxVersion10_6, osxVersion10_7, 0 };
 
             props.add (new ChoicePropertyComponent (getMacSDKVersion(), "OSX Base SDK Version", StringArray (osxVersions), Array<var> (osxVersionValues)),
                        "The version of OSX to link against in the XCode build.");
@@ -201,6 +208,10 @@ protected:
 
             props.add (new ChoicePropertyComponent (getMacArchitecture(), "OSX Architecture", StringArray (osxArch), Array<var> (osxArchValues)),
                        "The type of OSX binary that will be produced.");
+
+            props.add (new TextPropertyComponent (getCustomXcodeFlags(), "Custom Xcode flags", 8192, false),
+                       "A comma-separated list of custom Xcode setting flags which will be appended to the list of generated flags, "
+                       "e.g. MACOSX_DEPLOYMENT_TARGET_i386 = 10.5, VALID_ARCHS = \"ppc i386 x86_64\"");
         }
     };
 
@@ -277,10 +288,8 @@ private:
             addGroup (createID ("__mainsourcegroup"), "Source", topLevelGroupIDs);
         }
 
-        for (int i = 0; i < getNumConfigurations(); ++i)
+        for (ConfigIterator config (*this); config.next();)
         {
-            const BuildConfiguration::Ptr config (getConfiguration (i));
-
             addProjectConfig (config->getName().getValue(), getProjectSettings (*config));
             addTargetConfig  (config->getName().getValue(), getTargetSettings (dynamic_cast <XcodeBuildConfiguration&> (*config)));
         }
@@ -390,11 +399,11 @@ private:
     {
         Array<Image> images;
 
-        Image bigIcon (project.getBigIcon());
+        Image bigIcon (getBigIcon());
         if (bigIcon.isValid())
             images.add (bigIcon);
 
-        Image smallIcon (project.getSmallIcon());
+        Image smallIcon (getSmallIcon());
         if (smallIcon.isValid())
             images.add (smallIcon);
 
@@ -434,6 +443,7 @@ private:
         addPlistDictionaryKey (dict, "CFBundleSignature",           xcodeBundleSignature);
         addPlistDictionaryKey (dict, "CFBundleShortVersionString",  project.getVersion().toString());
         addPlistDictionaryKey (dict, "CFBundleVersion",             project.getVersion().toString());
+        addPlistDictionaryKey (dict, "NSHumanReadableCopyright",    project.getCompanyName().toString());
 
         StringArray documentExtensions;
         documentExtensions.addTokens (replacePreprocessorDefs (getAllPreprocessorDefs(), getSetting ("documentExtensions").toString()),
@@ -555,6 +565,14 @@ private:
     {
         StringArray s;
 
+        {
+            String srcRoot = rebaseFromProjectFolderToBuildTarget (RelativePath (".", RelativePath::projectFolder)).toUnixStyle();
+            if (srcRoot.endsWith ("/."))
+                srcRoot = srcRoot.dropLastCharacters (2);
+
+            s.add ("SRCROOT = " + srcRoot.quoted());
+        }
+
         const String arch (config.getMacArchitecture().toString());
         if (arch == osxArch_Native)                s.add ("ARCHS = \"$(ARCHS_NATIVE)\"");
         else if (arch == osxArch_32BitUniversal)   s.add ("ARCHS = \"$(ARCHS_STANDARD_32_BIT)\"");
@@ -604,25 +622,23 @@ private:
             const String sdk (config.getMacSDKVersion().toString());
             const String sdkCompat (config.getMacCompatibilityVersion().toString());
 
-            if (sdk == osxVersion10_4)
-            {
-                s.add ("SDKROOT = macosx10.4");
-                gccVersion = "4.0";
-            }
-            else if (sdk == osxVersion10_5)
-            {
-                s.add ("SDKROOT = macosx10.5");
-            }
-            else if (sdk == osxVersion10_6)
-            {
-                s.add ("SDKROOT = macosx10.6");
-            }
+            if (sdk == osxVersion10_4)        { s.add ("SDKROOT = macosx10.4"); gccVersion = "4.0"; }
+            else if (sdk == osxVersion10_5)     s.add ("SDKROOT = macosx10.5");
+            else if (sdk == osxVersion10_6)     s.add ("SDKROOT = macosx10.6");
+            else if (sdk == osxVersion10_7)     s.add ("SDKROOT = macosx10.7");
 
             if (sdkCompat == osxVersion10_4)       s.add ("MACOSX_DEPLOYMENT_TARGET = 10.4");
             else if (sdkCompat == osxVersion10_5)  s.add ("MACOSX_DEPLOYMENT_TARGET = 10.5");
             else if (sdkCompat == osxVersion10_6)  s.add ("MACOSX_DEPLOYMENT_TARGET = 10.6");
+            else if (sdkCompat == osxVersion10_7)  s.add ("MACOSX_DEPLOYMENT_TARGET = 10.7");
 
             s.add ("MACOSX_DEPLOYMENT_TARGET_ppc = 10.4");
+
+            if (xcodeExcludedFiles64Bit.isNotEmpty())
+            {
+                s.add ("EXCLUDED_SOURCE_FILE_NAMES = \"$(EXCLUDED_SOURCE_FILE_NAMES_$(CURRENT_ARCH))\"");
+                s.add ("EXCLUDED_SOURCE_FILE_NAMES_x86_64 = " + xcodeExcludedFiles64Bit);
+            }
         }
 
         s.add ("GCC_VERSION = " + gccVersion);
@@ -634,6 +650,9 @@ private:
 
             if (linkerFlags.size() > 0)
                 s.add ("OTHER_LDFLAGS = \"" + linkerFlags.joinIntoString (" ") + "\"");
+
+            librarySearchPaths.addArray (config.getLibrarySearchPaths());
+            librarySearchPaths.removeDuplicates (false);
 
             if (librarySearchPaths.size() > 0)
             {
@@ -688,6 +707,11 @@ private:
             s.add ("GCC_PREPROCESSOR_DEFINITIONS = (" + indentList (defsList, ",") + ")");
         }
 
+        s.addTokens (config.getCustomXcodeFlags().toString(), ",", "\"'");
+        s.trim();
+        s.removeEmptyStrings();
+        s.removeDuplicates (false);
+
         return s;
     }
 
@@ -696,6 +720,8 @@ private:
         if (! projectType.isLibrary())
         {
             StringArray s (xcodeFrameworks);
+            s.addTokens (getExtraFrameworks().toString(), ",;", "\"'");
+
             s.trim();
             s.removeDuplicates (true);
             s.sort (true);
@@ -840,7 +866,7 @@ private:
 public:
     static int compareElements (const ValueTree* first, const ValueTree* second)
     {
-        return first->getType().toString().compare (second->getType().toString());
+        return first->getType().getCharPointer().compare (second->getType().getCharPointer());
     }
 
 private:

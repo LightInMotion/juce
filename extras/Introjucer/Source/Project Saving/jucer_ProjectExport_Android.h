@@ -42,7 +42,7 @@ public:
         if (settings.hasType (getValueTreeTypeName()))
             return new AndroidProjectExporter (project, settings);
 
-        return 0;
+        return nullptr;
     }
 
     //==============================================================================
@@ -54,17 +54,20 @@ public:
         if (getTargetLocation().toString().isEmpty())
             getTargetLocation() = getDefaultBuildsRootFolder() + "Android";
 
+        if (getActivityClassPath().toString().isEmpty())
+            getActivityClassPath() = createDefaultClassName();
+
         if (getSDKPath().toString().isEmpty())
             getSDKPath() = "${user.home}/SDKs/android-sdk-macosx";
 
         if (getNDKPath().toString().isEmpty())
-            getNDKPath() = "${user.home}/SDKs/android-ndk-r7";
+            getNDKPath() = "${user.home}/SDKs/android-ndk-r7b";
+
+        if (getMinimumSDKVersion().toString().isEmpty())
+            getMinimumSDKVersion() = 8;
 
         if (getInternetNeeded().toString().isEmpty())
             getInternetNeeded() = true;
-
-        androidDynamicLibs.add ("GLESv1_CM");
-        androidDynamicLibs.add ("GLESv2");
     }
 
     //==============================================================================
@@ -89,32 +92,65 @@ public:
     {
         ProjectExporter::createPropertyEditors (props);
 
+        props.add (new TextPropertyComponent (getActivityClassPath(), "Android Activity class name", 256, false),
+                   "The full java class name to use for the app's Activity class.");
+
         props.add (new TextPropertyComponent (getSDKPath(), "Android SDK Path", 1024, false),
                    "The path to the Android SDK folder on the target build machine");
 
         props.add (new TextPropertyComponent (getNDKPath(), "Android NDK Path", 1024, false),
                    "The path to the Android NDK folder on the target build machine");
 
+        props.add (new TextPropertyComponent (getMinimumSDKVersion(), "Minimum SDK version", 32, false),
+                   "The number of the minimum version of the Android SDK that the app requires");
+
         props.add (new BooleanPropertyComponent (getInternetNeeded(), "Internet Access", "Specify internet access permission in the manifest"),
                    "If enabled, this will set the android.permission.INTERNET flag in the manifest.");
+
+        props.add (new BooleanPropertyComponent (getAudioRecordNeeded(), "Audio Input Required", "Specify audio record permission in the manifest"),
+                   "If enabled, this will set the android.permission.RECORD_AUDIO flag in the manifest.");
+
+        props.add (new TextPropertyComponent (getOtherPermissions(), "Custom permissions", 2048, false),
+                   "A space-separated list of other permission flags that should be added to the manifest.");
     }
 
+    Value getActivityClassPath() const          { return getSetting (Ids::androidActivityClass); }
     Value getSDKPath() const                    { return getSetting (Ids::androidSDKPath); }
     Value getNDKPath() const                    { return getSetting (Ids::androidNDKPath); }
     Value getInternetNeeded() const             { return getSetting (Ids::androidInternetNeeded); }
+    Value getAudioRecordNeeded() const          { return getSetting (Ids::androidMicNeeded); }
+    Value getMinimumSDKVersion() const          { return getSetting (Ids::androidMinimumSDK); }
+    Value getOtherPermissions() const           { return getSetting (Ids::androidOtherPermissions); }
+
+    String createDefaultClassName() const
+    {
+        String s (project.getBundleIdentifier().toString().toLowerCase());
+
+        if (s.length() > 5
+            && s.containsChar ('.')
+            && s.containsOnly ("abcdefghijklmnopqrstuvwxyz_.")
+            && ! s.startsWithChar ('.'))
+        {
+            if (! s.endsWithChar ('.'))
+                s << ".";
+        }
+        else
+        {
+            s = "com.yourcompany.";
+        }
+
+        return s + CodeHelpers::makeValidIdentifier (project.getProjectFilenameRoot(), false, true, false);
+    }
 
     //==============================================================================
-    void create()
+    void create (const OwnedArray<LibraryModule>& modules)
     {
         const File target (getTargetFolder());
         const File jniFolder (target.getChildFile ("jni"));
 
-        createDirectoryOrThrow (target.getChildFile ("src/com"));
+        copyActivityJavaFiles (modules);
         createDirectoryOrThrow (jniFolder);
-        createDirectoryOrThrow (target.getChildFile ("res/drawable-hdpi"));
-        createDirectoryOrThrow (target.getChildFile ("res/drawable-mdpi"));
-        createDirectoryOrThrow (target.getChildFile ("res/drawable-ldpi"));
-        createDirectoryOrThrow (target.getChildFile ("res/values"));
+        createDirectoryOrThrow (target.getChildFile ("res").getChildFile ("values"));
         createDirectoryOrThrow (target.getChildFile ("libs"));
         createDirectoryOrThrow (target.getChildFile ("bin"));
 
@@ -133,12 +169,23 @@ public:
 
         writeProjectPropertiesFile (target.getChildFile ("project.properties"));
         writeLocalPropertiesFile (target.getChildFile ("local.properties"));
-
-        writeIcon (target.getChildFile ("res/drawable-hdpi/icon.png"), 72);
-        writeIcon (target.getChildFile ("res/drawable-mdpi/icon.png"), 48);
-        writeIcon (target.getChildFile ("res/drawable-ldpi/icon.png"), 36);
-
         writeStringsFile (target.getChildFile ("res/values/strings.xml"));
+
+        const Image bigIcon (getBigIcon());
+        const Image smallIcon (getSmallIcon());
+
+        if (bigIcon.isValid() && smallIcon.isValid())
+        {
+            const int step = jmax (bigIcon.getWidth(), bigIcon.getHeight()) / 8;
+            writeIcon (target.getChildFile ("res/drawable-xhdpi/icon.png"), getBestIconForSize (step * 8, false));
+            writeIcon (target.getChildFile ("res/drawable-hdpi/icon.png"),  getBestIconForSize (step * 6, false));
+            writeIcon (target.getChildFile ("res/drawable-mdpi/icon.png"),  getBestIconForSize (step * 4, false));
+            writeIcon (target.getChildFile ("res/drawable-ldpi/icon.png"),  getBestIconForSize (step * 3, false));
+        }
+        else
+        {
+            writeIcon (target.getChildFile ("res/drawable-mdpi/icon.png"), bigIcon.isValid() ? bigIcon : smallIcon);
+        }
     }
 
 protected:
@@ -149,13 +196,24 @@ protected:
         AndroidBuildConfiguration (Project& project, const ValueTree& settings)
             : BuildConfiguration (project, settings)
         {
+            androidDynamicLibs.add ("GLESv1_CM");
+            androidDynamicLibs.add ("GLESv2");
+
+            if (getArchitectures().toString().isEmpty())
+                getArchitectures() = "armeabi armeabi-v7a";
         }
+
+        Value getArchitectures() const   { return getValue (Ids::androidArchitectures); }
 
         void createPropertyEditors (PropertyListBuilder& props)
         {
             createBasicPropertyEditors (props);
 
+            props.add (new TextPropertyComponent (getArchitectures(), "Architectures", 256, false),
+                       "A list of the ARM architectures to build (for a fat binary).");
         }
+
+        StringArray androidDynamicLibs;
     };
 
     BuildConfiguration::Ptr createBuildConfig (const ValueTree& settings) const
@@ -172,7 +230,7 @@ private:
         manifest->setAttribute ("xmlns:android", "http://schemas.android.com/apk/res/android");
         manifest->setAttribute ("android:versionCode", "1");
         manifest->setAttribute ("android:versionName", "1.0");
-        manifest->setAttribute ("package", "com.juce");
+        manifest->setAttribute ("package", getActivityClassPackage());
 
         XmlElement* screens = manifest->createNewChildElement ("supports-screens");
         screens->setAttribute ("android:smallScreens", "true");
@@ -181,10 +239,13 @@ private:
         //screens->setAttribute ("android:xlargeScreens", "true");
         screens->setAttribute ("android:anyDensity", "true");
 
-        if (getInternetNeeded().getValue())
+        manifest->createNewChildElement ("uses-sdk")->setAttribute ("android:minSdkVersion", getMinimumSDKVersion().toString());
+
         {
-            XmlElement* permission = manifest->createNewChildElement ("uses-permission");
-            permission->setAttribute ("android:name", "android.permission.INTERNET");
+            const StringArray permissions (getPermissionsRequired());
+
+            for (int i = permissions.size(); --i >= 0;)
+                manifest->createNewChildElement ("uses-permission")->setAttribute ("android:name", permissions[i]);
         }
 
         XmlElement* app = manifest->createNewChildElement ("application");
@@ -192,7 +253,7 @@ private:
         app->setAttribute ("android:icon", "@drawable/icon");
 
         XmlElement* act = app->createNewChildElement ("activity");
-        act->setAttribute ("android:name", "JuceAppActivity");
+        act->setAttribute ("android:name", getActivityName());
         act->setAttribute ("android:label", "@string/app_name");
 
         XmlElement* intent = act->createNewChildElement ("intent-filter");
@@ -200,6 +261,19 @@ private:
         intent->createNewChildElement ("category")->setAttribute ("android:name", "android.intent.category.LAUNCHER");
 
         return manifest;
+    }
+
+    StringArray getPermissionsRequired() const
+    {
+        StringArray s;
+        s.addTokens (getOtherPermissions().toString(), ", ", "");
+
+        if (getInternetNeeded().getValue())         s.add ("android.permission.INTERNET");
+        if (getAudioRecordNeeded().getValue())      s.add ("android.permission.RECORD_AUDIO");
+
+        s.trim();
+        s.removeDuplicates (false);
+        return s;
     }
 
     //==============================================================================
@@ -217,6 +291,63 @@ private:
         }
     }
 
+    //==============================================================================
+    String getActivityName() const
+    {
+        return getActivityClassPath().toString().fromLastOccurrenceOf (".", false, false);
+    }
+
+    String getActivityClassPackage() const
+    {
+        return getActivityClassPath().toString().upToLastOccurrenceOf (".", false, false);
+    }
+
+    String getJNIActivityClassName() const
+    {
+        return getActivityClassPath().toString().replaceCharacter ('.', '/');
+    }
+
+    static LibraryModule* getCoreModule (const OwnedArray<LibraryModule>& modules)
+    {
+        for (int i = modules.size(); --i >= 0;)
+            if (modules.getUnchecked(i)->getID() == "juce_core")
+                return modules.getUnchecked(i);
+
+        return nullptr;
+    }
+
+    void copyActivityJavaFiles (const OwnedArray<LibraryModule>& modules)
+    {
+        const String className (getActivityName());
+        const String package (getActivityClassPackage());
+        String path (package.replaceCharacter ('.', File::separator));
+
+        if (path.isEmpty() || className.isEmpty())
+            throw SaveError ("Invalid Android Activity class name: " + getActivityClassPath().toString());
+
+        const File classFolder (getTargetFolder().getChildFile ("src")
+                                                 .getChildFile (path));
+        createDirectoryOrThrow (classFolder);
+
+        LibraryModule* const coreModule = getCoreModule (modules);
+
+        if (coreModule == nullptr)
+            throw SaveError ("To build an Android app, the juce_core module must be included in your project!");
+
+        File javaDestFile (classFolder.getChildFile (className + ".java"));
+
+        File javaSourceFile (coreModule->getFolder().getChildFile ("native")
+                                                    .getChildFile ("java")
+                                                    .getChildFile ("JuceAppActivity.java"));
+
+        MemoryOutputStream newFile;
+        newFile << javaSourceFile.loadFileAsString()
+                                 .replace ("JuceAppActivity", className)
+                                 .replace ("package com.juce;", "package " + package + ";");
+
+        overwriteFileIfDifferentOrThrow (javaDestFile, newFile);
+    }
+
     void writeApplicationMk (const File& file)
     {
         MemoryOutputStream mo;
@@ -226,7 +357,7 @@ private:
            << newLine
            << "APP_STL := gnustl_static" << newLine
            << "APP_CPPFLAGS += -fsigned-char -fexceptions -frtti" << newLine
-           << "APP_PLATFORM := android-7" << newLine;
+           << "APP_PLATFORM := android-8" << newLine;
 
         overwriteFileIfDifferentOrThrow (file, mo);
     }
@@ -259,26 +390,46 @@ private:
         for (int i = 0; i < files.size(); ++i)
             out << "  ../" << escapeSpaces (files.getReference(i).toUnixStyle()) << "\\" << newLine;
 
+        String debugSettings, releaseSettings;
+
         out << newLine
-            << "ifeq ($(CONFIG),Debug)" << newLine
-            << "  LOCAL_CPPFLAGS += " << createCPPFlags (true) << newLine
-            << "else" << newLine
-            << "  LOCAL_CPPFLAGS += " << createCPPFlags (false) << newLine
-            << "endif" << newLine
-            << newLine
-            << getDynamicLibs()
+            << "ifeq ($(CONFIG),Debug)" << newLine;
+        writeConfigSettings (out, true);
+        out << "else" << newLine;
+        writeConfigSettings (out, false);
+        out << "endif" << newLine
             << newLine
             << "include $(BUILD_SHARED_LIBRARY)" << newLine;
     }
 
-    String getDynamicLibs()
+    void writeConfigSettings (OutputStream& out, bool forDebug)
     {
-        if (androidDynamicLibs.size() == 0)
+        for (ConfigIterator config (*this); config.next();)
+        {
+            if (config->isDebug() == forDebug)
+            {
+                const AndroidBuildConfiguration& androidConfig = dynamic_cast <const AndroidBuildConfiguration&> (*config);
+
+                out << "  LOCAL_CPPFLAGS += " << createCPPFlags (*config) << newLine
+                    << "  APP_ABI := " << androidConfig.getArchitectures().toString() << newLine
+                    << getDynamicLibs (androidConfig);
+
+                break;
+            }
+        }
+    }
+
+    String getDynamicLibs (const AndroidBuildConfiguration& config)
+    {
+        if (config.androidDynamicLibs.size() == 0)
             return String::empty;
 
-        String flags ("LOCAL_LDLIBS :=");
-        for (int i = 0; i < androidDynamicLibs.size(); ++i)
-            flags << " -l" << androidDynamicLibs[i];
+        String flags ("  LOCAL_LDLIBS :=");
+
+        flags << config.getGCCLibraryPathFlags();
+
+        for (int i = 0; i < config.androidDynamicLibs.size(); ++i)
+            flags << " -l" << config.androidDynamicLibs[i];
 
         return flags + newLine;
     }
@@ -296,29 +447,18 @@ private:
         return flags;
     }
 
-    String createCPPFlags (bool forDebug)
+    String createCPPFlags (const BuildConfiguration& config)
     {
-        String flags ("-fsigned-char -fexceptions -frtti");
-
-        if (forDebug)
-            flags << " -g";
-
-        for (int i = 0; i < getNumConfigurations(); ++i)
-        {
-            const BuildConfiguration::Ptr config (getConfiguration(i));
-
-            if (config->isDebug() == forDebug)
-            {
-                flags << createIncludePathFlags (*config);
-                break;
-            }
-        }
-
         StringPairArray defines;
         defines.set ("JUCE_ANDROID", "1");
+        defines.set ("JUCE_ANDROID_ACTIVITY_CLASSNAME", getJNIActivityClassName().replaceCharacter ('/', '_'));
+        defines.set ("JUCE_ANDROID_ACTIVITY_CLASSPATH", "\\\"" + getJNIActivityClassName() + "\\\"");
 
-        if (forDebug)
+        String flags ("-fsigned-char -fexceptions -frtti");
+
+        if (config.isDebug().getValue())
         {
+            flags << " -g";
             defines.set ("DEBUG", "1");
             defines.set ("_DEBUG", "1");
         }
@@ -327,19 +467,10 @@ private:
             defines.set ("NDEBUG", "1");
         }
 
-        for (int i = 0; i < getNumConfigurations(); ++i)
-        {
-            const BuildConfiguration::Ptr config (getConfiguration(i));
+        flags << createIncludePathFlags (config)
+              << " -O" << config.getGCCOptimisationFlag();
 
-            if (config->isDebug() == forDebug)
-            {
-                flags << " -O" << config->getGCCOptimisationFlag();
-
-                defines = mergePreprocessorDefs (defines, getAllPreprocessorDefs (*config));
-                break;
-            }
-        }
-
+        defines = mergePreprocessorDefs (defines, getAllPreprocessorDefs (config));
         return flags + createGCCPreprocessorFlags (defines);
     }
 
@@ -366,9 +497,6 @@ private:
 
         addNDKBuildStep (proj, "clean", "clean");
 
-        //addLinkStep (proj, "${basedir}/" + rebaseFromProjectFolderToBuildTarget (RelativePath()).toUnixStyle() + "/", "jni/app");
-        addLinkStep (proj, "${basedir}/" + getJucePathFromTargetFolder().toUnixStyle() + "/modules/juce_core/native/java/", "src/com/juce");
-
         addNDKBuildStep (proj, "debug", "CONFIG=Debug");
         addNDKBuildStep (proj, "release", "CONFIG=Release");
 
@@ -391,25 +519,13 @@ private:
         executable->createNewChildElement ("arg")->setAttribute ("value", arg);
     }
 
-    static void addLinkStep (XmlElement* project, const String& from, const String& to)
-    {
-        XmlElement* executable = project->createNewChildElement ("exec");
-        executable->setAttribute ("executable", "ln");
-        executable->setAttribute ("dir", "${basedir}");
-        executable->setAttribute ("failonerror", "false");
-
-        executable->createNewChildElement ("arg")->setAttribute ("value", "-s");
-        executable->createNewChildElement ("arg")->setAttribute ("value", from);
-        executable->createNewChildElement ("arg")->setAttribute ("value", to);
-    }
-
     void writeProjectPropertiesFile (const File& file)
     {
         MemoryOutputStream mo;
         mo << "# This file is used to override default values used by the Ant build system." << newLine
            << "# It is automatically generated - DO NOT EDIT IT or your changes will be lost!." << newLine
            << newLine
-           << "target=Google Inc.:Google APIs:7" << newLine
+           << "target=Google Inc.:Google APIs:8" << newLine
            << newLine;
 
         overwriteFileIfDifferentOrThrow (file, mo);
@@ -428,12 +544,12 @@ private:
         overwriteFileIfDifferentOrThrow (file, mo);
     }
 
-    void writeIcon (const File& file, int size)
+    void writeIcon (const File& file, const Image& im)
     {
-        Image im (getBestIconForSize (size, false));
-
         if (im.isValid())
         {
+            createDirectoryOrThrow (file.getParentDirectory());
+
             PNGImageFormat png;
             MemoryOutputStream mo;
 

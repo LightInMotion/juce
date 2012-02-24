@@ -456,21 +456,17 @@ void LibraryModule::createLocalHeaderWrapper (ProjectSaver& projectSaver, const 
         << newLine;
 
     StringArray paths, guards;
-    for (int i = project.getNumExporters(); --i >= 0;)
+
+    for (Project::ExporterIterator exporter (project); exporter.next();)
     {
-        ScopedPointer <ProjectExporter> exporter (project.createExporter (i));
+        const RelativePath headerFromProject (getModuleRelativeToProject (*exporter)
+                                                .getChildFile (originalHeader.getFileName()));
 
-        if (exporter != nullptr)
-        {
-            const RelativePath headerFromProject (getModuleRelativeToProject (*exporter)
-                                                   .getChildFile (originalHeader.getFileName()));
+        const RelativePath fileFromHere (headerFromProject.rebased (project.getFile().getParentDirectory(),
+                                                                    localHeader.getParentDirectory(), RelativePath::unknown));
 
-            const RelativePath fileFromHere (headerFromProject.rebased (project.getFile().getParentDirectory(),
-                                                                        localHeader.getParentDirectory(), RelativePath::unknown));
-
-            paths.add (fileFromHere.toUnixStyle().quoted());
-            guards.add ("defined (" + exporter->getExporterIdentifierMacro() + ")");
-        }
+        paths.add (fileFromHere.toUnixStyle().quoted());
+        guards.add ("defined (" + exporter->getExporterIdentifierMacro() + ")");
     }
 
     writeGuardedInclude (out, paths, guards);
@@ -588,8 +584,10 @@ void LibraryModule::findWildcardMatches (const File& localModuleFolder, const St
     FileSorter sorter;
 
     DirectoryIterator iter (localModuleFolder.getChildFile (path), false, wildCard);
-    while (iter.next())
-        if (! iter.getFile().isHidden())
+    bool isHiddenFile;
+
+    while (iter.next (nullptr, &isHiddenFile, nullptr, nullptr, nullptr, nullptr))
+        if (! isHiddenFile)
             tempList.addSorted (sorter, iter.getFile());
 
     result.addArray (tempList);

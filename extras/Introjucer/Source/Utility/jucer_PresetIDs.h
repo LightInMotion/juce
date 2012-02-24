@@ -35,6 +35,7 @@ namespace Ids
     DECLARE_ID (name);
     DECLARE_ID (file);
     DECLARE_ID (version);
+    DECLARE_ID (companyName);
     DECLARE_ID (position);
     DECLARE_ID (source);
     DECLARE_ID (width);
@@ -49,8 +50,7 @@ namespace Ids
     DECLARE_ID (extraCompilerFlags);
     DECLARE_ID (extraLinkerFlags);
     DECLARE_ID (extraDefs);
-    DECLARE_ID (libraryName_Debug);
-    DECLARE_ID (libraryName_Release);
+    DECLARE_ID (projectType);
     DECLARE_ID (libraryType);
     DECLARE_ID (isDebug);
     DECLARE_ID (targetName);
@@ -58,14 +58,20 @@ namespace Ids
     DECLARE_ID (optimisation);
     DECLARE_ID (defines);
     DECLARE_ID (headerPath);
+    DECLARE_ID (libraryPath);
+    DECLARE_ID (customXcodeFlags);
     DECLARE_ID (osxSDK);
     DECLARE_ID (osxCompatibility);
     DECLARE_ID (osxArchitecture);
+    DECLARE_ID (extraFrameworks);
     DECLARE_ID (winArchitecture);
     DECLARE_ID (winWarningLevel);
+    DECLARE_ID (bigIcon);
+    DECLARE_ID (smallIcon);
     DECLARE_ID (jucerVersion);
-    DECLARE_ID (projectType);
     DECLARE_ID (prebuildCommand);
+    DECLARE_ID (postbuildCommand);
+    DECLARE_ID (generateManifest);
     DECLARE_ID (juceLinkage);
     DECLARE_ID (buildVST);
     DECLARE_ID (bundleIdentifier);
@@ -92,9 +98,14 @@ namespace Ids
     DECLARE_ID (useStdCall);
     DECLARE_ID (showAllCode);
     DECLARE_ID (useLocalCopy);
+    DECLARE_ID (androidActivityClass);
     DECLARE_ID (androidSDKPath);
     DECLARE_ID (androidNDKPath);
     DECLARE_ID (androidInternetNeeded);
+    DECLARE_ID (androidArchitectures);
+    DECLARE_ID (androidMicNeeded);
+    DECLARE_ID (androidMinimumSDK);
+    DECLARE_ID (androidOtherPermissions);
     const Identifier class_ ("class");
 
     #undef DECLARE_ID

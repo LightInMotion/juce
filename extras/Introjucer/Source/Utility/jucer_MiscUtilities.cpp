@@ -66,6 +66,11 @@ String escapeSpaces (const String& s)
     return s.replace (" ", "\\ ");
 }
 
+String addQuotesIfContainsSpaces (const String& text)
+{
+    return (text.containsChar (' ') && ! text.isQuotedString()) ? text.quoted() : text;
+}
+
 //==============================================================================
 StringPairArray parsePreprocessorDefs (const String& text)
 {
@@ -129,7 +134,10 @@ String createGCCPreprocessorFlags (const StringPairArray& defs)
         if (value.isNotEmpty())
             def << "=" << value;
 
-        s += " -D " + def.quoted();
+        if (! def.endsWithChar ('"'))
+            def = def.quoted();
+
+        s += " -D " + def;
     }
 
     return s;
@@ -405,6 +413,51 @@ void showUTF8ToolWindow()
     UTF8Component comp;
     DialogWindow::showModalDialog ("UTF-8 String Literal Converter", &comp,
                                    nullptr, Colours::white, true, true);
+}
+
+bool cancelAnyModalComponents()
+{
+    const int numModal = ModalComponentManager::getInstance()->getNumModalComponents();
+
+    for (int i = numModal; --i >= 0;)
+        if (ModalComponentManager::getInstance()->getModalComponent(i) != nullptr)
+            ModalComponentManager::getInstance()->getModalComponent(i)->exitModalState (0);
+
+    return numModal > 0;
+}
+
+//==============================================================================
+class AsyncCommandRetrier  : public Timer
+{
+public:
+    AsyncCommandRetrier (const ApplicationCommandTarget::InvocationInfo& info_)
+        : info (info_)
+    {
+        info.originatingComponent = nullptr;
+        startTimer (500);
+    }
+
+    void timerCallback()
+    {
+        stopTimer();
+        commandManager->invoke (info, true);
+        delete this;
+    }
+
+    ApplicationCommandTarget::InvocationInfo info;
+
+    JUCE_DECLARE_NON_COPYABLE (AsyncCommandRetrier);
+};
+
+bool reinvokeCommandAfterCancellingModalComps (const ApplicationCommandTarget::InvocationInfo& info)
+{
+    if (cancelAnyModalComponents())
+    {
+        new AsyncCommandRetrier (info);
+        return true;
+    }
+
+    return false;
 }
 
 //==============================================================================

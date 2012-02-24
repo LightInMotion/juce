@@ -23,9 +23,7 @@
   ==============================================================================
 */
 
-BEGIN_JUCE_NAMESPACE
 
-//==============================================================================
 HyperlinkButton::HyperlinkButton (const String& linkText,
                                   const URL& linkURL)
    : Button (linkText),
@@ -70,12 +68,10 @@ void HyperlinkButton::setURL (const URL& newURL) noexcept
 
 Font HyperlinkButton::getFontToUse() const
 {
-    Font f (font);
-
     if (resizeFont)
-        f.setHeight (getHeight() * 0.7f);
+        return font.withHeight (getHeight() * 0.7f);
 
-    return f;
+    return font;
 }
 
 void HyperlinkButton::changeWidthToFitText()
@@ -126,5 +122,3 @@ void HyperlinkButton::refreshFromValueTree (const ValueTree& state, ComponentBui
     setButtonText (state [Ids::text].toString());
     setURL (URL (state [Ids::url].toString()));
 }
-
-END_JUCE_NAMESPACE

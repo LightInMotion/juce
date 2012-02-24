@@ -74,23 +74,21 @@ public:
     //==============================================================================
     // project types
     const ProjectType& getProjectType() const;
-    Value getProjectTypeValue() const                   { return getProjectValue ("projectType"); }
+    Value getProjectTypeValue() const                   { return getProjectValue (Ids::projectType); }
 
-    Value getVersion() const                            { return getProjectValue ("version"); }
+    Value getVersion() const                            { return getProjectValue (Ids::version); }
     String getVersionAsHex() const;
+
     Value getBundleIdentifier() const                   { return getProjectValue (Ids::bundleIdentifier); }
     void setBundleIdentifierToDefault()                 { getBundleIdentifier() = "com.yourcompany." + CodeHelpers::makeValidIdentifier (getProjectName().toString(), false, true, false); }
+
+    Value getCompanyName() const                        { return getProjectValue (Ids::companyName); }
 
     //==============================================================================
     Value getProjectValue (const Identifier& name) const  { return projectRoot.getPropertyAsValue (name, getUndoManagerFor (projectRoot)); }
 
     Value getProjectPreprocessorDefs() const            { return getProjectValue (Ids::defines); }
     StringPairArray getPreprocessorDefs() const;
-
-    Value getBigIconImageItemID() const                 { return getProjectValue ("bigIcon"); }
-    Value getSmallIconImageItemID() const               { return getProjectValue ("smallIcon"); }
-    Image getBigIcon();
-    Image getSmallIcon();
 
     //==============================================================================
     File getAppIncludeFile() const                      { return getGeneratedCodeFolder().getChildFile (getJuceSourceHFilename()); }
@@ -194,6 +192,24 @@ public:
     void deleteExporter (int index);
     void createDefaultExporters();
 
+    struct ExporterIterator
+    {
+        ExporterIterator (Project& project);
+        ~ExporterIterator();
+
+        bool next();
+
+        ProjectExporter& operator*() const       { return *exporter; }
+        ProjectExporter* operator->() const      { return exporter; }
+
+        ScopedPointer<ProjectExporter> exporter;
+        int index;
+
+    private:
+        Project& project;
+        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ExporterIterator);
+    };
+
     //==============================================================================
     struct ConfigFlag
     {
@@ -250,6 +266,8 @@ private:
     ValueTree getModulesNode();
 
     void updateOldStyleConfigList();
+    void moveOldPropertyFromProjectToAllExporters (Identifier name);
+    void removeDefunctExporters();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Project);
 };

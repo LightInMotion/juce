@@ -41,7 +41,6 @@ StringArray ProjectExporter::getExporterNames()
     StringArray s;
     s.add (XCodeProjectExporter::getNameMac());
     s.add (XCodeProjectExporter::getNameiOS());
-    s.add (MSVCProjectExporterVC6::getName());
     s.add (MSVCProjectExporterVC2005::getName());
     s.add (MSVCProjectExporterVC2008::getName());
     s.add (MSVCProjectExporterVC2010::getName());
@@ -68,12 +67,11 @@ ProjectExporter* ProjectExporter::createNewExporter (Project& project, const int
     {
         case 0:     exp = new XCodeProjectExporter      (project, ValueTree (XCodeProjectExporter     ::getValueTreeTypeName (false)), false); break;
         case 1:     exp = new XCodeProjectExporter      (project, ValueTree (XCodeProjectExporter     ::getValueTreeTypeName (true)), true); break;
-        case 2:     exp = new MSVCProjectExporterVC6    (project, ValueTree (MSVCProjectExporterVC6   ::getValueTreeTypeName())); break;
-        case 3:     exp = new MSVCProjectExporterVC2005 (project, ValueTree (MSVCProjectExporterVC2005::getValueTreeTypeName())); break;
-        case 4:     exp = new MSVCProjectExporterVC2008 (project, ValueTree (MSVCProjectExporterVC2008::getValueTreeTypeName())); break;
-        case 5:     exp = new MSVCProjectExporterVC2010 (project, ValueTree (MSVCProjectExporterVC2010::getValueTreeTypeName())); break;
-        case 6:     exp = new MakefileProjectExporter   (project, ValueTree (MakefileProjectExporter  ::getValueTreeTypeName())); break;
-        case 7:     exp = new AndroidProjectExporter    (project, ValueTree (AndroidProjectExporter   ::getValueTreeTypeName())); break;
+        case 2:     exp = new MSVCProjectExporterVC2005 (project, ValueTree (MSVCProjectExporterVC2005::getValueTreeTypeName())); break;
+        case 3:     exp = new MSVCProjectExporterVC2008 (project, ValueTree (MSVCProjectExporterVC2008::getValueTreeTypeName())); break;
+        case 4:     exp = new MSVCProjectExporterVC2010 (project, ValueTree (MSVCProjectExporterVC2010::getValueTreeTypeName())); break;
+        case 5:     exp = new MakefileProjectExporter   (project, ValueTree (MakefileProjectExporter  ::getValueTreeTypeName())); break;
+        case 6:     exp = new AndroidProjectExporter    (project, ValueTree (AndroidProjectExporter   ::getValueTreeTypeName())); break;
         default:    jassertfalse; return 0;
     }
 
@@ -97,8 +95,7 @@ ProjectExporter* ProjectExporter::createNewExporter (Project& project, const Str
 
 ProjectExporter* ProjectExporter::createExporter (Project& project, const ValueTree& settings)
 {
-    ProjectExporter* exp = MSVCProjectExporterVC6         ::createForSettings (project, settings);
-    if (exp == nullptr)    exp = MSVCProjectExporterVC2005::createForSettings (project, settings);
+    ProjectExporter*       exp = MSVCProjectExporterVC2005::createForSettings (project, settings);
     if (exp == nullptr)    exp = MSVCProjectExporterVC2008::createForSettings (project, settings);
     if (exp == nullptr)    exp = MSVCProjectExporterVC2010::createForSettings (project, settings);
     if (exp == nullptr)    exp = XCodeProjectExporter     ::createForSettings (project, settings);
@@ -114,15 +111,14 @@ ProjectExporter* ProjectExporter::createPlatformDefaultExporter (Project& projec
     ScopedPointer <ProjectExporter> best;
     int bestPref = 0;
 
-    for (int i = 0; i < project.getNumExporters(); ++i)
+    for (Project::ExporterIterator exporter (project); exporter.next();)
     {
-        ScopedPointer <ProjectExporter> exp (project.createExporter (i));
-        const int pref = exp->getLaunchPreferenceOrderForCurrentOS();
+        const int pref = exporter->getLaunchPreferenceOrderForCurrentOS();
 
         if (pref > bestPref)
         {
             bestPref = pref;
-            best = exp;
+            best = exporter.exporter;
         }
     }
 
@@ -221,6 +217,31 @@ void ProjectExporter::createPropertyEditors (PropertyListBuilder& props)
                "Extra command-line flags to be passed to the compiler. This string can contain references to preprocessor definitions in the form ${NAME_OF_DEFINITION}, which will be replaced with their values.");
     props.add (new TextPropertyComponent (getExtraLinkerFlags(), "Extra linker flags", 2048, false),
                "Extra command-line flags to be passed to the linker. You might want to use this for adding additional libraries. This string can contain references to preprocessor definitions in the form ${NAME_OF_VALUE}, which will be replaced with their values.");
+
+    {
+        OwnedArray<Project::Item> images;
+        project.findAllImageItems (images);
+
+        StringArray choices;
+        Array<var> ids;
+
+        choices.add ("<None>");
+        ids.add (var::null);
+        choices.add (String::empty);
+        ids.add (var::null);
+
+        for (int i = 0; i < images.size(); ++i)
+        {
+            choices.add (images.getUnchecked(i)->getName().toString());
+            ids.add (images.getUnchecked(i)->getID());
+        }
+
+        props.add (new ChoicePropertyComponent (getSmallIconImageItemID(), "Icon (small)", choices, ids),
+                   "Sets an icon to use for the executable.");
+
+        props.add (new ChoicePropertyComponent (getBigIconImageItemID(), "Icon (large)", choices, ids),
+                   "Sets an icon to use for the executable.");
+    }
 }
 
 StringPairArray ProjectExporter::getAllPreprocessorDefs (const ProjectExporter::BuildConfiguration& config) const
@@ -242,42 +263,6 @@ StringPairArray ProjectExporter::getAllPreprocessorDefs() const
 String ProjectExporter::replacePreprocessorTokens (const ProjectExporter::BuildConfiguration& config, const String& sourceString) const
 {
     return replacePreprocessorDefs (getAllPreprocessorDefs (config), sourceString);
-}
-
-Image ProjectExporter::getBestIconForSize (int size, bool returnNullIfNothingBigEnough)
-{
-    Image im;
-
-    const Image im1 (project.getSmallIcon());
-    const Image im2 (project.getBigIcon());
-
-    if (im1.isValid() && im2.isValid())
-    {
-        if (im1.getWidth() >= size && im2.getWidth() >= size)
-            im = im1.getWidth() < im2.getWidth() ? im1 : im2;
-        else if (im1.getWidth() >= size)
-            im = im1;
-        else if (im2.getWidth() >= size)
-            im = im2;
-        else
-            return Image::null;
-    }
-    else
-    {
-        im = im1.isValid() ? im1 : im2;
-    }
-
-    if (size == im.getWidth() && size == im.getHeight())
-        return im;
-
-    if (returnNullIfNothingBigEnough && im.getWidth() < size && im.getHeight() < size)
-        return Image::null;
-
-    Image newIm (Image::ARGB, size, size, true, SoftwareImageType());
-    Graphics g (newIm);
-    g.drawImageWithin (im, 0, 0, size, size,
-                       RectanglePlacement::centred | RectanglePlacement::onlyReduceInSize, false);
-    return newIm;
 }
 
 Project::Item& ProjectExporter::getModulesGroup()
@@ -390,6 +375,67 @@ void ProjectExporter::createDefaultConfigs()
     }
 }
 
+Image ProjectExporter::getBigIcon()
+{
+    return project.getMainGroup().findItemWithID (getBigIconImageItemID().toString()).loadAsImageFile();
+}
+
+Image ProjectExporter::getSmallIcon()
+{
+    return project.getMainGroup().findItemWithID (getSmallIconImageItemID().toString()).loadAsImageFile();
+}
+
+Image ProjectExporter::getBestIconForSize (int size, bool returnNullIfNothingBigEnough)
+{
+    Image im;
+
+    const Image im1 (getSmallIcon());
+    const Image im2 (getBigIcon());
+
+    if (im1.isValid() && im2.isValid())
+    {
+        if (im1.getWidth() >= size && im2.getWidth() >= size)
+            im = im1.getWidth() < im2.getWidth() ? im1 : im2;
+        else if (im1.getWidth() >= size)
+            im = im1;
+        else if (im2.getWidth() >= size)
+            im = im2;
+        else
+            return Image::null;
+    }
+    else
+    {
+        im = im1.isValid() ? im1 : im2;
+    }
+
+    if (size == im.getWidth() && size == im.getHeight())
+        return im;
+
+    if (returnNullIfNothingBigEnough && im.getWidth() < size && im.getHeight() < size)
+        return Image::null;
+
+    Image newIm (Image::ARGB, size, size, true, SoftwareImageType());
+    Graphics g (newIm);
+    g.drawImageWithin (im, 0, 0, size, size,
+                       RectanglePlacement::centred | RectanglePlacement::onlyReduceInSize, false);
+    return newIm;
+}
+
+//==============================================================================
+ProjectExporter::ConfigIterator::ConfigIterator (ProjectExporter& exporter_)
+    : index (-1), exporter (exporter_)
+{
+}
+
+bool ProjectExporter::ConfigIterator::next()
+{
+    if (++index >= exporter.getNumConfigurations())
+        return false;
+
+    config = exporter.getConfiguration (index);
+    return true;
+}
+
 //==============================================================================
 ProjectExporter::BuildConfiguration::BuildConfiguration (Project& project_, const ValueTree& configNode)
    : config (configNode), project (project_)
@@ -416,20 +462,27 @@ void ProjectExporter::BuildConfiguration::createBasicPropertyEditors (PropertyLi
 
     const char* optimisationLevels[] = { "No optimisation", "Optimise for size and speed", "Optimise for maximum speed", 0 };
     const int optimisationLevelValues[] = { 1, 2, 3, 0 };
-    props.add (new ChoicePropertyComponent (getOptimisationLevel(), "Optimisation", StringArray (optimisationLevels), Array<var> (optimisationLevelValues)),
+    props.add (new ChoicePropertyComponent (getOptimisationLevel(), "Optimisation",
+                                            StringArray (optimisationLevels), Array<var> (optimisationLevelValues)),
                "The optimisation level for this configuration");
 
     props.add (new TextPropertyComponent (getTargetBinaryName(), "Binary name", 256, false),
-               "The filename to use for the destination binary executable file. Don't add a suffix to this, because platform-specific suffixes will be added for each target platform.");
+               "The filename to use for the destination binary executable file. If you don't add a suffix to this name, "
+               "a suitable platform-specific suffix will be added automatically.");
 
     props.add (new TextPropertyComponent (getTargetBinaryRelativePath(), "Binary location", 1024, false),
-               "The folder in which the finished binary should be placed. Leave this blank to cause the binary to be placed in its default location in the build folder.");
+               "The folder in which the finished binary should be placed. Leave this blank to cause the binary to be placed "
+               "in its default location in the build folder.");
 
-    props.add (new TextPropertyComponent (getHeaderSearchPath(), "Header search path", 16384, false),
+    props.add (new TextPropertyComponent (getHeaderSearchPath(), "Header search paths", 16384, false),
                "Extra header search paths. Use semi-colons to separate multiple paths.");
 
+    props.add (new TextPropertyComponent (getLibrarySearchPath(), "Extra library search paths", 16384, false),
+               "Extra library search paths. Use semi-colons to separate multiple paths.");
+
     props.add (new TextPropertyComponent (getBuildConfigPreprocessorDefs(), "Preprocessor definitions", 32768, false),
-               "Extra preprocessor definitions. Use the form \"NAME1=value NAME2=value\", using whitespace or commas to separate the items - to include a space or comma in a definition, precede it with a backslash.");
+               "Extra preprocessor definitions. Use the form \"NAME1=value NAME2=value\", using whitespace or commas to separate "
+               "the items - to include a space or comma in a definition, precede it with a backslash.");
 
     props.setPreferredHeight (22);
 }
@@ -444,5 +497,29 @@ StringArray ProjectExporter::BuildConfiguration::getHeaderSearchPaths() const
 {
     StringArray s;
     s.addTokens (getHeaderSearchPath().toString(), ";", String::empty);
+    s.trim();
+    s.removeEmptyStrings();
+    s.removeDuplicates (false);
+    return s;
+}
+
+StringArray ProjectExporter::BuildConfiguration::getLibrarySearchPaths() const
+{
+    StringArray s;
+    s.addTokens (getLibrarySearchPath().toString(), ";", String::empty);
+    s.trim();
+    s.removeEmptyStrings();
+    s.removeDuplicates (false);
+    return s;
+}
+
+String ProjectExporter::BuildConfiguration::getGCCLibraryPathFlags() const
+{
+    String s;
+    const StringArray libraryPaths (getLibrarySearchPaths());
+
+    for (int i = 0; i < libraryPaths.size(); ++i)
+        s << " -L" << addQuotesIfContainsSpaces (libraryPaths[i]);
+
     return s;
 }

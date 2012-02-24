@@ -23,9 +23,7 @@
   ==============================================================================
 */
 
-BEGIN_JUCE_NAMESPACE
 
-//==============================================================================
 class TreeViewContentComponent  : public Component,
                                   public TooltipClient,
                                   public AsyncUpdater
@@ -415,7 +413,7 @@ class TreeView::TreeViewport  : public Viewport
 public:
     TreeViewport() noexcept : lastX (-1)    {}
 
-    void updateComponents (const bool triggerResize = false)
+    void updateComponents (const bool triggerResize)
     {
         TreeViewContentComponent* const tvc = getContentComp();
 
@@ -442,6 +440,14 @@ public:
         return static_cast <TreeViewContentComponent*> (getViewedComponent());
     }
 
+    bool keyPressed (const KeyPress& key)
+    {
+        TreeView* const tree = dynamic_cast <TreeView*> (getParentComponent());
+
+        return (tree != nullptr && tree->keyPressed (key))
+                 || Viewport::keyPressed (key);
+    }
+
 private:
     int lastX;
 
@@ -463,7 +469,6 @@ TreeView::TreeView (const String& name)
 {
     addAndMakeVisible (viewport);
     viewport->setViewedComponent (new TreeViewContentComponent (*this));
-    viewport->setWantsKeyboardFocus (false);
     setWantsKeyboardFocus (true);
 }
 
@@ -744,8 +749,8 @@ void TreeView::scrollToKeepItemVisible (TreeViewItem* item)
 
         item = item->getDeepestOpenParentItem();
 
-        int y = item->y;
-        int viewTop = viewport->getViewPositionY();
+        const int y = item->y;
+        const int viewTop = viewport->getViewPositionY();
 
         if (y < viewTop)
         {
@@ -859,7 +864,7 @@ void TreeView::recalculateIfNeeded()
         if (rootItem != nullptr)
             rootItem->updatePositions (rootItemVisible ? 0 : -rootItem->itemHeight);
 
-        viewport->updateComponents();
+        viewport->updateComponents (false);
 
         if (rootItem != nullptr)
         {
@@ -1839,6 +1844,3 @@ TreeViewItem::OpennessRestorer::~OpennessRestorer()
     if (oldOpenness != nullptr)
         treeViewItem.restoreOpennessState (*oldOpenness);
 }
-
-
-END_JUCE_NAMESPACE

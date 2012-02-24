@@ -23,9 +23,7 @@
   ==============================================================================
 */
 
-BEGIN_JUCE_NAMESPACE
 
-//==============================================================================
 class Expression::Term  : public SingleThreadedReferenceCountedObject
 {
 public:
@@ -44,7 +42,7 @@ public:
     virtual ReferenceCountedObjectPtr<Term> negated();
 
     virtual ReferenceCountedObjectPtr<Term> createTermToEvaluateInput (const Scope&, const Term* /*inputTerm*/,
-                                                                             double /*overallTarget*/, Term* /*topLevelTerm*/) const
+                                                                       double /*overallTarget*/, Term* /*topLevelTerm*/) const
     {
         jassertfalse;
         return nullptr;
@@ -81,13 +79,9 @@ private:
 
 
 //==============================================================================
-class Expression::Helpers
+struct Expression::Helpers
 {
-public:
     typedef ReferenceCountedObjectPtr<Term> TermPtr;
-
-    // This helper function is needed to work around VC6 scoping bugs
-    static inline const TermPtr& getTermFor (const Expression& exp) noexcept      { return exp.term; }
 
     static void checkRecursionDepth (const int depth)
     {
@@ -141,9 +135,9 @@ public:
     class BinaryTerm  : public Term
     {
     public:
-        BinaryTerm (Term* const left_, Term* const right_) : left (left_), right (right_)
+        BinaryTerm (Term* const l, Term* const r) : left (l), right (r)
         {
-            jassert (left_ != nullptr && right_ != nullptr);
+            jassert (l != nullptr && r != nullptr);
         }
 
         int getInputIndexFor (const Term* possibleInput) const
@@ -160,7 +154,7 @@ public:
 
         TermPtr resolve (const Scope& scope, int recursionDepth)
         {
-            return new Constant (performFunction (left->resolve (scope, recursionDepth)->toDouble(),
+            return new Constant (performFunction (left ->resolve (scope, recursionDepth)->toDouble(),
                                                   right->resolve (scope, recursionDepth)->toDouble()), false);
         }
 
@@ -211,7 +205,7 @@ public:
         TermPtr resolve (const Scope& scope, int recursionDepth)
         {
             checkRecursionDepth (recursionDepth);
-            return getTermFor (scope.getSymbolValue (symbol))->resolve (scope, recursionDepth + 1);
+            return scope.getSymbolValue (symbol).term->resolve (scope, recursionDepth + 1);
         }
 
         Type getType() const noexcept   { return symbolType; }
@@ -223,7 +217,7 @@ public:
         {
             checkRecursionDepth (recursionDepth);
             visitor.useSymbol (Symbol (scope.getScopeUID(), symbol));
-            getTermFor (scope.getSymbolValue (symbol))->visitAllSymbols (visitor, scope, recursionDepth + 1);
+            scope.getSymbolValue (symbol).term->visitAllSymbols (visitor, scope, recursionDepth + 1);
         }
 
         void renameSymbol (const Symbol& oldSymbol, const String& newName, const Scope& scope, int /*recursionDepth*/)
@@ -248,7 +242,7 @@ public:
         Type getType() const noexcept   { return functionType; }
         Term* clone() const             { return new Function (functionName, parameters); }
         int getNumInputs() const        { return parameters.size(); }
-        Term* getInput (int i) const    { return getTermFor (parameters [i]); }
+        Term* getInput (int i) const    { return parameters.getReference(i).term; }
         String getName() const          { return functionName; }
 
         TermPtr resolve (const Scope& scope, int recursionDepth)
@@ -260,7 +254,7 @@ public:
             {
                 HeapBlock<double> params ((size_t) numParams);
                 for (int i = 0; i < numParams; ++i)
-                    params[i] = getTermFor (parameters.getReference(i))->resolve (scope, recursionDepth + 1)->toDouble();
+                    params[i] = parameters.getReference(i).term->resolve (scope, recursionDepth + 1)->toDouble();
 
                 result = scope.evaluateFunction (functionName, params, numParams);
             }
@@ -275,7 +269,7 @@ public:
         int getInputIndexFor (const Term* possibleInput) const
         {
             for (int i = 0; i < parameters.size(); ++i)
-                if (getTermFor (parameters.getReference(i)) == possibleInput)
+                if (parameters.getReference(i).term == possibleInput)
                     return i;
 
             return -1;
@@ -290,7 +284,7 @@ public:
 
             for (int i = 0; i < parameters.size(); ++i)
             {
-                s << getTermFor (parameters.getReference(i))->toString();
+                s << parameters.getReference(i).term->toString();
 
                 if (i < parameters.size() - 1)
                     s << ", ";
@@ -308,7 +302,7 @@ public:
     class DotOperator  : public BinaryTerm
     {
     public:
-        DotOperator (SymbolTerm* const left_, Term* const right_)  : BinaryTerm (left_, right_) {}
+        DotOperator (SymbolTerm* const l, Term* const r)  : BinaryTerm (l, r) {}
 
         TermPtr resolve (const Scope& scope, int recursionDepth)
         {
@@ -459,7 +453,7 @@ public:
     class Add  : public BinaryTerm
     {
     public:
-        Add (Term* const left_, Term* const right_) : BinaryTerm (left_, right_) {}
+        Add (Term* const l, Term* const r) : BinaryTerm (l, r) {}
 
         Term* clone() const                     { return new Add (left->clone(), right->clone()); }
         double performFunction (double lhs, double rhs) const    { return lhs + rhs; }
@@ -484,7 +478,7 @@ public:
     class Subtract  : public BinaryTerm
     {
     public:
-        Subtract (Term* const left_, Term* const right_) : BinaryTerm (left_, right_) {}
+        Subtract (Term* const l, Term* const r) : BinaryTerm (l, r) {}
 
         Term* clone() const                     { return new Subtract (left->clone(), right->clone()); }
         double performFunction (double lhs, double rhs) const    { return lhs - rhs; }
@@ -512,7 +506,7 @@ public:
     class Multiply  : public BinaryTerm
     {
     public:
-        Multiply (Term* const left_, Term* const right_) : BinaryTerm (left_, right_) {}
+        Multiply (Term* const l, Term* const r) : BinaryTerm (l, r) {}
 
         Term* clone() const                     { return new Multiply (left->clone(), right->clone()); }
         double performFunction (double lhs, double rhs) const    { return lhs * rhs; }
@@ -537,7 +531,7 @@ public:
     class Divide  : public BinaryTerm
     {
     public:
-        Divide (Term* const left_, Term* const right_) : BinaryTerm (left_, right_) {}
+        Divide (Term* const l, Term* const r) : BinaryTerm (l, r) {}
 
         Term* clone() const                     { return new Divide (left->clone(), right->clone()); }
         double performFunction (double lhs, double rhs) const    { return lhs / rhs; }
@@ -1174,6 +1168,3 @@ String Expression::Scope::getScopeUID() const
 {
     return String::empty;
 }
-
-
-END_JUCE_NAMESPACE

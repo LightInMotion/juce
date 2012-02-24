@@ -23,7 +23,6 @@
   ==============================================================================
 */
 
-BEGIN_JUCE_NAMESPACE
 
 JUCEApplicationBase::CreateInstanceFunction JUCEApplicationBase::createInstance = 0;
 JUCEApplicationBase* JUCEApplicationBase::appInstance = nullptr;
@@ -68,5 +67,3 @@ void JUCEApplicationBase::appWillResume()
     if (appInstance != nullptr)
         appInstance->resumeApp();
 }
-
-END_JUCE_NAMESPACE

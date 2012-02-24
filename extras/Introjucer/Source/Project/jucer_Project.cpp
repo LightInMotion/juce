@@ -54,6 +54,7 @@ Project::Project (const File& file_)
       projectRoot (Tags::projectRoot)
 {
     setFile (file_);
+    removeDefunctExporters();
     setMissingDefaultValues();
 
     setChangedFlag (false);
@@ -111,14 +112,12 @@ void Project::setMissingDefaultValues()
         getVersion() = "1.0.0";
 
     updateOldStyleConfigList();
+    moveOldPropertyFromProjectToAllExporters (Ids::bigIcon);
+    moveOldPropertyFromProjectToAllExporters (Ids::smallIcon);
 
-    for (int i = 0; i < getNumExporters(); ++i)
-    {
-        ScopedPointer<ProjectExporter> exporter (createExporter(i));
-
-        if (exporter != nullptr && exporter->getNumConfigurations() == 0)
+    for (Project::ExporterIterator exporter (*this); exporter.next();)
+        if (exporter->getNumConfigurations() == 0)
             exporter->createDefaultConfigs();
-    }
 
     if (! projectRoot.getChildWithName (Tags::exporters).isValid())
         createDefaultExporters();
@@ -140,11 +139,9 @@ void Project::updateOldStyleConfigList()
     {
         projectRoot.removeChild (deprecatedConfigsList, nullptr);
 
-        for (int i = 0; i < getNumExporters(); ++i)
+        for (Project::ExporterIterator exporter (*this); exporter.next();)
         {
-            ScopedPointer<ProjectExporter> exporter (createExporter(i));
-
-            if (exporter != nullptr && exporter->getNumConfigurations() == 0)
+            if (exporter->getNumConfigurations() == 0)
             {
                 ValueTree newConfigs (deprecatedConfigsList.createCopy());
 
@@ -163,6 +160,32 @@ void Project::updateOldStyleConfigList()
                 exporter->settings.addChild (newConfigs, 0, nullptr);
             }
         }
+    }
+}
+
+void Project::moveOldPropertyFromProjectToAllExporters (Identifier name)
+{
+    if (projectRoot.hasProperty (name))
+    {
+        for (Project::ExporterIterator exporter (*this); exporter.next();)
+            exporter->settings.setProperty (name, projectRoot [name], nullptr);
+
+        projectRoot.removeProperty (name, nullptr);
+    }
+}
+
+void Project::removeDefunctExporters()
+{
+    ValueTree exporters (projectRoot.getChildWithName (Tags::exporters));
+
+    for (;;)
+    {
+        ValueTree oldVC6Exporter (exporters.getChildWithName ("MSVC6"));
+
+        if (oldVC6Exporter.isValid())
+            exporters.removeChild (oldVC6Exporter, nullptr);
+        else
+            break;
     }
 }
 
@@ -325,6 +348,9 @@ void Project::createPropertyEditors (PropertyListBuilder& props)
     props.add (new TextPropertyComponent (getVersion(), "Project Version", 16, false),
                "The project's version number, This should be in the format major.minor.point");
 
+    props.add (new TextPropertyComponent (getCompanyName(), "Company Name", 256, false),
+               "Your company name, which will be added to the properties of the binary where possible");
+
     {
         StringArray projectTypeNames;
         Array<var> projectTypeCodes;
@@ -343,32 +369,7 @@ void Project::createPropertyEditors (PropertyListBuilder& props)
     props.add (new TextPropertyComponent (getBundleIdentifier(), "Bundle Identifier", 256, false),
                "A unique identifier for this product, mainly for use in Mac builds. It should be something like 'com.yourcompanyname.yourproductname'");
 
-    {
-        OwnedArray<Project::Item> images;
-        findAllImageItems (images);
-
-        StringArray choices;
-        Array<var> ids;
-
-        choices.add ("<None>");
-        ids.add (var::null);
-        choices.add (String::empty);
-        ids.add (var::null);
-
-        for (int i = 0; i < images.size(); ++i)
-        {
-            choices.add (images.getUnchecked(i)->getName().toString());
-            ids.add (images.getUnchecked(i)->getID());
-        }
-
-        props.add (new ChoicePropertyComponent (getSmallIconImageItemID(), "Icon (small)", choices, ids),
-                   "Sets an icon to use for the executable.");
-
-        props.add (new ChoicePropertyComponent (getBigIconImageItemID(), "Icon (large)", choices, ids),
-                   "Sets an icon to use for the executable.");
-    }
-
-    getProjectType().createPropertyEditors(*this, props);
+    getProjectType().createPropertyEditors (*this, props);
 
     props.add (new TextPropertyComponent (getProjectPreprocessorDefs(), "Preprocessor definitions", 32768, false),
                "Extra preprocessor definitions. Use the form \"NAME1=value NAME2=value\", using whitespace or commas to separate the items - to include a space or comma in a definition, precede it with a backslash.");
@@ -389,16 +390,6 @@ String Project::getVersionAsHex() const
         value = (value << 8) + configs[3].getIntValue();
 
     return "0x" + String::toHexString (value);
-}
-
-Image Project::getBigIcon()
-{
-    return getMainGroup().findItemWithID (getBigIconImageItemID().toString()).loadAsImageFile();
-}
-
-Image Project::getSmallIcon()
-{
-    return getMainGroup().findItemWithID (getSmallIconImageItemID().toString()).loadAsImageFile();
 }
 
 StringPairArray Project::getPreprocessorDefs() const
@@ -960,4 +951,24 @@ String Project::getFileTemplate (const String& templateName)
     }
 
     return String::fromUTF8 (data, dataSize);
+}
+
+//==============================================================================
+Project::ExporterIterator::ExporterIterator (Project& project_) : index (-1), project (project_) {}
+Project::ExporterIterator::~ExporterIterator() {}
+
+bool Project::ExporterIterator::next()
+{
+    if (++index >= project.getNumExporters())
+        return false;
+
+    exporter = project.createExporter (index);
+
+    if (exporter == nullptr)
+    {
+        jassertfalse; // corrupted project file?
+        return next();
+    }
+
+    return true;
 }

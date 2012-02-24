@@ -309,13 +309,17 @@ namespace RTASHelpers
                                              .getChildFile ("modules/juce_audio_plugin_client/RTAS")
                                              .toWindowsStyle() + "\\");
 
-        exporter.msvcExtraLinkerOptions = "/FORCE:multiple";
         exporter.msvcDelayLoadedDLLs = "DAE.dll; DigiExt.dll; DSI.dll; PluginLib.dll; DSPManager.dll";
-        exporter.msvcModuleDefinitionFile = msvcPathToRTASFolder + "juce_RTAS_WinExports.def";
 
-        exporter.msvcPostBuildOutputs = "\"$(TargetPath)\".rsr";
-        exporter.msvcPostBuildCommand = "copy /Y \"" + msvcPathToRTASFolder + "juce_RTAS_WinResources.rsr"
-                                            + "\" \"$(TargetPath)\".rsr";
+        for (ProjectExporter::ConfigIterator config (exporter); config.next();)
+        {
+            config->msvcExtraLinkerOptions = "/FORCE:multiple";
+            config->msvcModuleDefinitionFile = msvcPathToRTASFolder + "juce_RTAS_WinExports.def";
+
+            if (config->msvcPostBuildCommand.isEmpty())
+                config->msvcPostBuildCommand = "copy /Y \"" + msvcPathToRTASFolder + "juce_RTAS_WinResources.rsr"
+                                                    + "\" \"$(TargetPath)\".rsr";
+        }
 
         exporter.xcodeExtraLibrariesDebug.add   (rtasFolder.getChildFile ("MacBag/Libs/Debug/libPluginLibrary.a"));
         exporter.xcodeExtraLibrariesRelease.add (rtasFolder.getChildFile ("MacBag/Libs/Release/libPluginLibrary.a"));
@@ -350,6 +354,7 @@ namespace AUHelpers
             exporter.extraSearchPaths.add ("$(DEVELOPER_DIR)/Extras/CoreAudio/AudioUnits/AUPublic/Utility");
 
             exporter.xcodeFrameworks.addTokens ("AudioUnit CoreAudioKit", false);
+            exporter.xcodeExcludedFiles64Bit = "\"*Carbon*.cpp\"";
 
             Project::Item subGroup (projectSaver.getGeneratedCodeGroup().addNewSubGroup ("Juce AU Wrapper", -1));
             subGroup.setID ("__juceappleaufiles");

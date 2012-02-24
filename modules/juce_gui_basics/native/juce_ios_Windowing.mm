@@ -23,7 +23,7 @@
   ==============================================================================
 */
 
-END_JUCE_NAMESPACE
+} // (juce namespace)
 
 @interface JuceAppStartupDelegate : NSObject <UIApplicationDelegate>
 {
@@ -65,7 +65,8 @@ END_JUCE_NAMESPACE
 
 @end
 
-BEGIN_JUCE_NAMESPACE
+namespace juce
+{
 
 int juce_iOSMain (int argc, const char* argv[])
 {
@@ -82,7 +83,7 @@ void LookAndFeel::playAlertSound()
 //==============================================================================
 class iOSMessageBox;
 
-END_JUCE_NAMESPACE
+} // (juce namespace)
 
 @interface JuceAlertBoxDelegate  : NSObject
 {
@@ -94,7 +95,8 @@ END_JUCE_NAMESPACE
 
 @end
 
-BEGIN_JUCE_NAMESPACE
+namespace juce
+{
 
 class iOSMessageBox
 {
@@ -155,7 +157,7 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (iOSMessageBox);
 };
 
-END_JUCE_NAMESPACE
+} // (juce namespace)
 
 @implementation JuceAlertBoxDelegate
 
@@ -166,8 +168,9 @@ END_JUCE_NAMESPACE
 }
 
 @end
-BEGIN_JUCE_NAMESPACE
 
+namespace juce
+{
 
 //==============================================================================
 void JUCE_CALLTYPE NativeMessageBox::showMessageBox (AlertWindow::AlertIconType iconType,

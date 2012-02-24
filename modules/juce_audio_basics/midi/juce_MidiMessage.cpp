@@ -23,7 +23,6 @@
   ==============================================================================
 */
 
-BEGIN_JUCE_NAMESPACE
 
 namespace MidiHelpers
 {
@@ -328,23 +327,22 @@ MidiMessage::MidiMessage (MidiMessage&& other) noexcept
 
 MidiMessage& MidiMessage::operator= (MidiMessage&& other) noexcept
 {
-    if (this != &other)
+    jassert (this != &other); // shouldn't be possible
+
+    timeStamp = other.timeStamp;
+    size = other.size;
+
+    freeData();
+
+    if (other.usesAllocatedData())
     {
-        timeStamp = other.timeStamp;
-        size = other.size;
-
-        freeData();
-
-        if (other.usesAllocatedData())
-        {
-            data = other.data;
-            other.setToUseInternalData();
-        }
-        else
-        {
-            setToUseInternalData();
-            preallocatedData.asInt32 = other.preallocatedData.asInt32;
-        }
+        data = other.data;
+        other.setToUseInternalData();
+    }
+    else
+    {
+        setToUseInternalData();
+        preallocatedData.asInt32 = other.preallocatedData.asInt32;
     }
 
     return *this;
@@ -559,7 +557,7 @@ MidiMessage MidiMessage::controllerEvent (const int channel, const int controlle
 
 MidiMessage MidiMessage::noteOn (const int channel, const int noteNumber, const float velocity) noexcept
 {
-    return noteOn (channel, noteNumber, (uint8) (velocity * 127.0f));
+    return noteOn (channel, noteNumber, (uint8) (velocity * 127.0f + 0.5f));
 }
 
 MidiMessage MidiMessage::noteOn (const int channel, const int noteNumber, const uint8 velocity) noexcept
@@ -1049,5 +1047,3 @@ String MidiMessage::getControllerName (const int n)
 
     return isPositiveAndBelow (n, (int) 128) ? names[n] : (const char*) nullptr;
 }
-
-END_JUCE_NAMESPACE

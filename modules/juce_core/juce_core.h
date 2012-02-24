@@ -105,7 +105,7 @@
 
  #pragma pack (push, 8) // this is set explicitly in case the app is using a different packing size.
  #pragma warning (push)
- #pragma warning (disable: 4786) // (old vc6 warning about long class names)
+ #pragma warning (disable: 4786) // (long class name warning)
  #ifdef __INTEL_COMPILER
   #pragma warning (disable: 1125)
  #endif
@@ -113,7 +113,8 @@
 
 #include "system/juce_StandardHeader.h"
 
-BEGIN_JUCE_NAMESPACE
+namespace juce
+{
 
 // START_AUTOINCLUDE containers, files, json, logging, maths, memory, misc, network,
 // streams, system, text, threads, time, unit_tests, xml, zip
@@ -407,7 +408,7 @@ BEGIN_JUCE_NAMESPACE
 #endif
 // END_AUTOINCLUDE
 
-END_JUCE_NAMESPACE
+}
 
 #if JUCE_MSVC
  #pragma warning (pop)

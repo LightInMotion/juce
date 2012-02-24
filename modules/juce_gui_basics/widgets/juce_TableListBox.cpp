@@ -23,9 +23,7 @@
   ==============================================================================
 */
 
-BEGIN_JUCE_NAMESPACE
 
-//==============================================================================
 class TableListRowComp   : public Component,
                            public TooltipClient
 {
@@ -163,7 +161,7 @@ public:
                 if (! (dragDescription.isVoid() || (dragDescription.isString() && dragDescription.toString().isEmpty())))
                 {
                     isDragging = true;
-                    owner.startDragAndDrop (e, dragDescription);
+                    owner.startDragAndDrop (e, dragDescription, true);
                 }
             }
         }
@@ -486,5 +484,3 @@ Component* TableListBoxModel::refreshComponentForCell (int, int, bool, Component
     jassert (existingComponentToUpdate == nullptr); // indicates a failure in the code the recycles the components
     return nullptr;
 }
-
-END_JUCE_NAMESPACE

@@ -23,9 +23,7 @@
   ==============================================================================
 */
 
-BEGIN_JUCE_NAMESPACE
 
-//==============================================================================
 class MidiKeyboardUpDownButton  : public Button
 {
 public:
@@ -461,10 +459,8 @@ void MidiKeyboardComponent::drawWhiteNote (int midiNoteNumber,
     if (! text.isEmpty())
     {
         g.setColour (textColour);
+        g.setFont (Font (jmin (12.0f, keyWidth * 0.9f)).withHorizontalScale (0.8f));
 
-        Font f (jmin (12.0f, keyWidth * 0.9f));
-        f.setHorizontalScale (0.8f);
-        g.setFont (f);
         Justification justification (Justification::centredBottom);
 
         if (orientation == verticalKeyboardFacingLeft)
@@ -873,6 +869,3 @@ void MidiKeyboardComponent::focusLost (FocusChangeType)
 {
     resetAnyKeysInUse();
 }
-
-
-END_JUCE_NAMESPACE

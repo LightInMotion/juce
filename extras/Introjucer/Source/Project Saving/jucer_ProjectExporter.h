@@ -55,7 +55,7 @@ public:
     virtual bool usesMMFiles() const = 0;
     virtual void createPropertyEditors (PropertyListBuilder&);
     virtual void launchProject() = 0;
-    virtual void create() = 0; // may throw a SaveError
+    virtual void create (const OwnedArray<LibraryModule>&) = 0; // may throw a SaveError
     virtual bool shouldFileBeCompiledByDefault (const RelativePath& path) const;
     virtual bool canCopeWithDuplicateFiles() = 0;
 
@@ -85,6 +85,12 @@ public:
 
     RelativePath rebaseFromProjectFolderToBuildTarget (const RelativePath& path) const;
     void addToExtraSearchPaths (const RelativePath& pathFromProjectFolder);
+
+    Value getBigIconImageItemID() const         { return getSetting (Ids::bigIcon); }
+    Value getSmallIconImageItemID() const       { return getSetting (Ids::smallIcon); }
+    Image getBigIcon();
+    Image getSmallIcon();
+    Image getBestIconForSize (int size, bool returnNullIfNothingBigEnough);
 
     String getExporterIdentifierMacro() const
     {
@@ -117,6 +123,7 @@ public:
     String xcodePackageType, xcodeBundleSignature, xcodeBundleExtension;
     String xcodeProductType, xcodeProductInstallPath, xcodeFileType;
     String xcodeShellScript, xcodeShellScriptTitle, xcodeOtherRezFlags;
+    String xcodeExcludedFiles64Bit;
     bool xcodeIsBundle, xcodeCreatePList, xcodeCanUseDwarf;
     StringArray xcodeFrameworks;
     Array<RelativePath> xcodeExtraLibrariesDebug, xcodeExtraLibrariesRelease;
@@ -130,12 +137,7 @@ public:
     String msvcTargetSuffix;
     StringPairArray msvcExtraPreprocessorDefs;
     bool msvcIsDLL, msvcIsWindowsSubsystem, msvcNeedsDLLRuntimeLib;
-    String msvcExtraLinkerOptions, msvcDelayLoadedDLLs, msvcModuleDefinitionFile;
-    String msvcPostBuildCommand, msvcPostBuildOutputs;
-    String msvcPreBuildCommand;
-
-    //==============================================================================
-    StringArray androidDynamicLibs;
+    String msvcDelayLoadedDLLs;
 
     //==============================================================================
     StringArray extraSearchPaths;
@@ -164,9 +166,16 @@ public:
         StringPairArray getAllPreprocessorDefs() const; // includes inherited definitions
         Value getHeaderSearchPath() const                   { return getValue (Ids::headerPath); }
         StringArray getHeaderSearchPaths() const;
+        Value getLibrarySearchPath() const                  { return getValue (Ids::libraryPath); }
+        StringArray getLibrarySearchPaths() const;
+        String getGCCLibraryPathFlags() const;
 
         //==============================================================================
         ValueTree config;
+
+        //==============================================================================
+        String msvcExtraLinkerOptions, msvcModuleDefinitionFile;
+        String msvcPreBuildCommand, msvcPostBuildCommand;
 
     protected:
         Project& project;
@@ -180,12 +189,31 @@ public:
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BuildConfiguration);
     };
 
-    int getNumConfigurations() const;
-    BuildConfiguration::Ptr getConfiguration (int index) const;
     void addNewConfiguration (const BuildConfiguration* configToCopy);
     void deleteConfiguration (int index);
     bool hasConfigurationNamed (const String& name) const;
     String getUniqueConfigName (String name) const;
+
+    //==============================================================================
+    struct ConfigIterator
+    {
+        ConfigIterator (ProjectExporter& exporter);
+
+        bool next();
+
+        BuildConfiguration& operator*() const       { return *config; }
+        BuildConfiguration* operator->() const      { return config; }
+
+        BuildConfiguration::Ptr config;
+        int index;
+
+    private:
+        ProjectExporter& exporter;
+        JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ConfigIterator);
+    };
+
+    int getNumConfigurations() const;
+    BuildConfiguration::Ptr getConfiguration (int index) const;
 
     ValueTree getConfigurations() const;
     void createDefaultConfigs();
@@ -225,8 +253,6 @@ protected:
             name = name + ".a";
         return name;
     }
-
-    Image getBestIconForSize (int size, bool returnNullIfNothingBigEnough);
 
     //==============================================================================
     static void overwriteFileIfDifferentOrThrow (const File& file, const MemoryOutputStream& newData)

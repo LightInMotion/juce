@@ -54,6 +54,7 @@
             GenerateDebugInformation="true"
             ProgramDatabaseFile=".\Debug\HelloWorld.pdb"
             SubSystem="2"
+            GenerateManifest="true"
             TargetMachine="1"/>
       <Tool Name="VCALinkTool"/>
       <Tool Name="VCManifestTool"/>
@@ -110,7 +111,7 @@
             GenerateDebugInformation="false"
             ProgramDatabaseFile=".\Release\HelloWorld.pdb"
             SubSystem="2"
-            GenerateManifest="false"
+            GenerateManifest="true"
             OptimizeReferences="2"
             EnableCOMDATFolding="2"
             TargetMachine="1"/>
@@ -3232,6 +3233,7 @@
       <File RelativePath="..\..\..\..\modules\juce_gui_basics\juce_gui_basics.cpp"/>
       <File RelativePath="..\..\..\..\modules\juce_gui_extra\juce_gui_extra.cpp"/>
       <File RelativePath="..\..\JuceLibraryCode\JuceHeader.h"/>
+      <File RelativePath="resources.rc"/>
     </Filter>
   </Files>
   <Globals/>

@@ -23,7 +23,7 @@
   ==============================================================================
 */
 
-#ifdef __JUCE_OPENGL_JUCEHEADER__
+#if defined (__JUCE_OPENGL_JUCEHEADER__) && ! JUCE_AMALGAMATED_INCLUDE
  /* When you add this cpp file to your project, you mustn't include it in a file where you've
     already included any other headers - just put it inside a file on its own, possibly with your config
     flags preceding it, but don't include anything else. That also includes avoiding any automatic prefix
@@ -117,7 +117,6 @@
  #ifndef GL_GLEXT_PROTOTYPES
   #define GL_GLEXT_PROTOTYPES 1
  #endif
- #include <GLES/glext.h>
  #include <GLES2/gl2.h>
 #endif
 
@@ -131,14 +130,18 @@ namespace juce
 void OpenGLExtensionFunctions::initialise()
 {
    #if JUCE_WINDOWS || JUCE_LINUX
-    #define JUCE_INIT_GL_FUNCTION(name, returnType, params, callparams)    name = (type_ ## name) OpenGLHelpers::getExtensionFunction (#name);
+    #define JUCE_INIT_GL_FUNCTION(name, returnType, params, callparams) \
+        name = (type_ ## name) OpenGLHelpers::getExtensionFunction (#name);
+
     JUCE_GL_EXTENSION_FUNCTIONS (JUCE_INIT_GL_FUNCTION)
     #undef JUCE_INIT_GL_FUNCTION
    #endif
 }
 
 #if JUCE_OPENGL_ES
- #define JUCE_DECLARE_GL_FUNCTION(name, returnType, params, callparams) inline returnType OpenGLExtensionFunctions::name params { return ::name callparams; }
+ #define JUCE_DECLARE_GL_FUNCTION(name, returnType, params, callparams) \
+    inline returnType OpenGLExtensionFunctions::name params { return ::name callparams; }
+
  JUCE_GL_EXTENSION_FUNCTIONS (JUCE_DECLARE_GL_FUNCTION)
  #undef JUCE_DECLARE_GL_FUNCTION
 #endif

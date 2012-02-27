@@ -51,23 +51,23 @@ public:
     {
         name = getNameAndroid();
 
-        if (getTargetLocation().toString().isEmpty())
-            getTargetLocation() = getDefaultBuildsRootFolder() + "Android";
+        if (getTargetLocationString().isEmpty())
+            getTargetLocationValue() = getDefaultBuildsRootFolder() + "Android";
 
-        if (getActivityClassPath().toString().isEmpty())
-            getActivityClassPath() = createDefaultClassName();
+        if (getActivityClassPath().isEmpty())
+            getActivityClassPathValue() = createDefaultClassName();
 
-        if (getSDKPath().toString().isEmpty())
-            getSDKPath() = "${user.home}/SDKs/android-sdk-macosx";
+        if (getSDKPathString().isEmpty())
+            getSDKPathValue() = "${user.home}/SDKs/android-sdk-macosx";
 
-        if (getNDKPath().toString().isEmpty())
-            getNDKPath() = "${user.home}/SDKs/android-ndk-r7b";
+        if (getNDKPathString().isEmpty())
+            getNDKPathValue() = "${user.home}/SDKs/android-ndk-r7b";
 
-        if (getMinimumSDKVersion().toString().isEmpty())
-            getMinimumSDKVersion() = 8;
+        if (getMinimumSDKVersionString().isEmpty())
+            getMinimumSDKVersionValue() = 8;
 
-        if (getInternetNeeded().toString().isEmpty())
-            getInternetNeeded() = true;
+        if (getInternetNeededValue().toString().isEmpty())
+            getInternetNeededValue() = true;
     }
 
     //==============================================================================
@@ -92,35 +92,42 @@ public:
     {
         ProjectExporter::createPropertyEditors (props);
 
-        props.add (new TextPropertyComponent (getActivityClassPath(), "Android Activity class name", 256, false),
+        props.add (new TextPropertyComponent (getActivityClassPathValue(), "Android Activity class name", 256, false),
                    "The full java class name to use for the app's Activity class.");
 
-        props.add (new TextPropertyComponent (getSDKPath(), "Android SDK Path", 1024, false),
+        props.add (new TextPropertyComponent (getSDKPathValue(), "Android SDK Path", 1024, false),
                    "The path to the Android SDK folder on the target build machine");
 
-        props.add (new TextPropertyComponent (getNDKPath(), "Android NDK Path", 1024, false),
+        props.add (new TextPropertyComponent (getNDKPathValue(), "Android NDK Path", 1024, false),
                    "The path to the Android NDK folder on the target build machine");
 
-        props.add (new TextPropertyComponent (getMinimumSDKVersion(), "Minimum SDK version", 32, false),
+        props.add (new TextPropertyComponent (getMinimumSDKVersionValue(), "Minimum SDK version", 32, false),
                    "The number of the minimum version of the Android SDK that the app requires");
 
-        props.add (new BooleanPropertyComponent (getInternetNeeded(), "Internet Access", "Specify internet access permission in the manifest"),
+        props.add (new BooleanPropertyComponent (getInternetNeededValue(), "Internet Access", "Specify internet access permission in the manifest"),
                    "If enabled, this will set the android.permission.INTERNET flag in the manifest.");
 
-        props.add (new BooleanPropertyComponent (getAudioRecordNeeded(), "Audio Input Required", "Specify audio record permission in the manifest"),
+        props.add (new BooleanPropertyComponent (getAudioRecordNeededValue(), "Audio Input Required", "Specify audio record permission in the manifest"),
                    "If enabled, this will set the android.permission.RECORD_AUDIO flag in the manifest.");
 
-        props.add (new TextPropertyComponent (getOtherPermissions(), "Custom permissions", 2048, false),
+        props.add (new TextPropertyComponent (getOtherPermissionsValue(), "Custom permissions", 2048, false),
                    "A space-separated list of other permission flags that should be added to the manifest.");
     }
 
-    Value getActivityClassPath() const          { return getSetting (Ids::androidActivityClass); }
-    Value getSDKPath() const                    { return getSetting (Ids::androidSDKPath); }
-    Value getNDKPath() const                    { return getSetting (Ids::androidNDKPath); }
-    Value getInternetNeeded() const             { return getSetting (Ids::androidInternetNeeded); }
-    Value getAudioRecordNeeded() const          { return getSetting (Ids::androidMicNeeded); }
-    Value getMinimumSDKVersion() const          { return getSetting (Ids::androidMinimumSDK); }
-    Value getOtherPermissions() const           { return getSetting (Ids::androidOtherPermissions); }
+    Value getActivityClassPathValue()      { return getSetting (Ids::androidActivityClass); }
+    String getActivityClassPath() const    { return settings [Ids::androidActivityClass]; }
+    Value getSDKPathValue()                { return getSetting (Ids::androidSDKPath); }
+    String getSDKPathString() const        { return settings [Ids::androidSDKPath]; }
+    Value getNDKPathValue()                { return getSetting (Ids::androidNDKPath); }
+    String getNDKPathString() const        { return settings [Ids::androidNDKPath]; }
+    Value getInternetNeededValue()         { return getSetting (Ids::androidInternetNeeded); }
+    bool getInternetNeeded() const         { return settings [Ids::androidInternetNeeded]; }
+    Value getAudioRecordNeededValue()      { return getSetting (Ids::androidMicNeeded); }
+    bool getAudioRecordNeeded() const      { return settings [Ids::androidMicNeeded]; }
+    Value getMinimumSDKVersionValue()      { return getSetting (Ids::androidMinimumSDK); }
+    String getMinimumSDKVersionString() const { return settings [Ids::androidMinimumSDK]; }
+    Value getOtherPermissionsValue()       { return getSetting (Ids::androidOtherPermissions); }
+    String getOtherPermissions() const     { return settings [Ids::androidOtherPermissions]; }
 
     String createDefaultClassName() const
     {
@@ -143,7 +150,7 @@ public:
     }
 
     //==============================================================================
-    void create (const OwnedArray<LibraryModule>& modules)
+    void create (const OwnedArray<LibraryModule>& modules) const
     {
         const File target (getTargetFolder());
         const File jniFolder (target.getChildFile ("jni"));
@@ -196,24 +203,20 @@ protected:
         AndroidBuildConfiguration (Project& project, const ValueTree& settings)
             : BuildConfiguration (project, settings)
         {
-            androidDynamicLibs.add ("GLESv1_CM");
-            androidDynamicLibs.add ("GLESv2");
-
-            if (getArchitectures().toString().isEmpty())
-                getArchitectures() = "armeabi armeabi-v7a";
+            if (getArchitectures().isEmpty())
+                getArchitecturesValue() = "armeabi armeabi-v7a";
         }
 
-        Value getArchitectures() const   { return getValue (Ids::androidArchitectures); }
+        Value getArchitecturesValue()           { return getValue (Ids::androidArchitectures); }
+        String getArchitectures() const         { return config [Ids::androidArchitectures]; }
 
         void createPropertyEditors (PropertyListBuilder& props)
         {
             createBasicPropertyEditors (props);
 
-            props.add (new TextPropertyComponent (getArchitectures(), "Architectures", 256, false),
+            props.add (new TextPropertyComponent (getArchitecturesValue(), "Architectures", 256, false),
                        "A list of the ARM architectures to build (for a fat binary).");
         }
-
-        StringArray androidDynamicLibs;
     };
 
     BuildConfiguration::Ptr createBuildConfig (const ValueTree& settings) const
@@ -223,7 +226,7 @@ protected:
 
 private:
     //==============================================================================
-    XmlElement* createManifestXML()
+    XmlElement* createManifestXML() const
     {
         XmlElement* manifest = new XmlElement ("manifest");
 
@@ -239,13 +242,20 @@ private:
         //screens->setAttribute ("android:xlargeScreens", "true");
         screens->setAttribute ("android:anyDensity", "true");
 
-        manifest->createNewChildElement ("uses-sdk")->setAttribute ("android:minSdkVersion", getMinimumSDKVersion().toString());
+        manifest->createNewChildElement ("uses-sdk")->setAttribute ("android:minSdkVersion", getMinimumSDKVersionString());
 
         {
             const StringArray permissions (getPermissionsRequired());
 
             for (int i = permissions.size(); --i >= 0;)
                 manifest->createNewChildElement ("uses-permission")->setAttribute ("android:name", permissions[i]);
+        }
+
+        if (project.isModuleEnabled ("juce_opengl"))
+        {
+            XmlElement* feature = manifest->createNewChildElement ("uses-feature");
+            feature->setAttribute ("android:glEsVersion", "0x00020000");
+            feature->setAttribute ("android:required", "true");
         }
 
         XmlElement* app = manifest->createNewChildElement ("application");
@@ -266,10 +276,10 @@ private:
     StringArray getPermissionsRequired() const
     {
         StringArray s;
-        s.addTokens (getOtherPermissions().toString(), ", ", "");
+        s.addTokens (getOtherPermissions(), ", ", "");
 
-        if (getInternetNeeded().getValue())         s.add ("android.permission.INTERNET");
-        if (getAudioRecordNeeded().getValue())      s.add ("android.permission.RECORD_AUDIO");
+        if (getInternetNeeded())         s.add ("android.permission.INTERNET");
+        if (getAudioRecordNeeded())      s.add ("android.permission.RECORD_AUDIO");
 
         s.trim();
         s.removeDuplicates (false);
@@ -277,7 +287,7 @@ private:
     }
 
     //==============================================================================
-    void findAllFilesToCompile (const Project::Item& projectItem, Array<RelativePath>& results)
+    void findAllFilesToCompile (const Project::Item& projectItem, Array<RelativePath>& results) const
     {
         if (projectItem.isGroup())
         {
@@ -294,17 +304,17 @@ private:
     //==============================================================================
     String getActivityName() const
     {
-        return getActivityClassPath().toString().fromLastOccurrenceOf (".", false, false);
+        return getActivityClassPath().fromLastOccurrenceOf (".", false, false);
     }
 
     String getActivityClassPackage() const
     {
-        return getActivityClassPath().toString().upToLastOccurrenceOf (".", false, false);
+        return getActivityClassPath().upToLastOccurrenceOf (".", false, false);
     }
 
     String getJNIActivityClassName() const
     {
-        return getActivityClassPath().toString().replaceCharacter ('.', '/');
+        return getActivityClassPath().replaceCharacter ('.', '/');
     }
 
     static LibraryModule* getCoreModule (const OwnedArray<LibraryModule>& modules)
@@ -316,14 +326,14 @@ private:
         return nullptr;
     }
 
-    void copyActivityJavaFiles (const OwnedArray<LibraryModule>& modules)
+    void copyActivityJavaFiles (const OwnedArray<LibraryModule>& modules) const
     {
         const String className (getActivityName());
         const String package (getActivityClassPackage());
         String path (package.replaceCharacter ('.', File::separator));
 
         if (path.isEmpty() || className.isEmpty())
-            throw SaveError ("Invalid Android Activity class name: " + getActivityClassPath().toString());
+            throw SaveError ("Invalid Android Activity class name: " + getActivityClassPath());
 
         const File classFolder (getTargetFolder().getChildFile ("src")
                                                  .getChildFile (path));
@@ -348,7 +358,7 @@ private:
         overwriteFileIfDifferentOrThrow (javaDestFile, newFile);
     }
 
-    void writeApplicationMk (const File& file)
+    void writeApplicationMk (const File& file) const
     {
         MemoryOutputStream mo;
 
@@ -362,7 +372,7 @@ private:
         overwriteFileIfDifferentOrThrow (file, mo);
     }
 
-    void writeAndroidMk (const File& file)
+    void writeAndroidMk (const File& file) const
     {
         Array<RelativePath> files;
 
@@ -375,7 +385,7 @@ private:
         overwriteFileIfDifferentOrThrow (file, mo);
     }
 
-    void writeAndroidMk (OutputStream& out, const Array<RelativePath>& files)
+    void writeAndroidMk (OutputStream& out, const Array<RelativePath>& files) const
     {
         out << "# Automatically generated makefile, created by the Introjucer" << newLine
             << "# Don't edit this file! Your changes will be overwritten when you re-save the Introjucer project!" << newLine
@@ -402,16 +412,16 @@ private:
             << "include $(BUILD_SHARED_LIBRARY)" << newLine;
     }
 
-    void writeConfigSettings (OutputStream& out, bool forDebug)
+    void writeConfigSettings (OutputStream& out, bool forDebug) const
     {
-        for (ConfigIterator config (*this); config.next();)
+        for (ConstConfigIterator config (*this); config.next();)
         {
             if (config->isDebug() == forDebug)
             {
                 const AndroidBuildConfiguration& androidConfig = dynamic_cast <const AndroidBuildConfiguration&> (*config);
 
                 out << "  LOCAL_CPPFLAGS += " << createCPPFlags (*config) << newLine
-                    << "  APP_ABI := " << androidConfig.getArchitectures().toString() << newLine
+                    << "  APP_ABI := " << androidConfig.getArchitectures() << newLine
                     << getDynamicLibs (androidConfig);
 
                 break;
@@ -419,22 +429,26 @@ private:
         }
     }
 
-    String getDynamicLibs (const AndroidBuildConfiguration& config)
+    String getDynamicLibs (const AndroidBuildConfiguration& config) const
     {
-        if (config.androidDynamicLibs.size() == 0)
-            return String::empty;
-
         String flags ("  LOCAL_LDLIBS :=");
 
         flags << config.getGCCLibraryPathFlags();
 
-        for (int i = 0; i < config.androidDynamicLibs.size(); ++i)
-            flags << " -l" << config.androidDynamicLibs[i];
+        {
+            StringArray libs;
+            libs.add ("log");
+            libs.add ("GLESv1_CM");
+            libs.add ("GLESv2");
+
+            for (int i = 0; i < libs.size(); ++i)
+                flags << " -l" << libs[i];
+        }
 
         return flags + newLine;
     }
 
-    String createIncludePathFlags (const BuildConfiguration& config)
+    String createIncludePathFlags (const BuildConfiguration& config) const
     {
         String flags;
         StringArray searchPaths (extraSearchPaths);
@@ -447,7 +461,7 @@ private:
         return flags;
     }
 
-    String createCPPFlags (const BuildConfiguration& config)
+    String createCPPFlags (const BuildConfiguration& config) const
     {
         StringPairArray defines;
         defines.set ("JUCE_ANDROID", "1");
@@ -456,7 +470,7 @@ private:
 
         String flags ("-fsigned-char -fexceptions -frtti");
 
-        if (config.isDebug().getValue())
+        if (config.isDebug())
         {
             flags << " -g";
             defines.set ("DEBUG", "1");
@@ -475,7 +489,7 @@ private:
     }
 
     //==============================================================================
-    XmlElement* createAntBuildXML()
+    XmlElement* createAntBuildXML() const
     {
         XmlElement* proj = new XmlElement ("project");
         proj->setAttribute ("name", projectName);
@@ -519,7 +533,7 @@ private:
         executable->createNewChildElement ("arg")->setAttribute ("value", arg);
     }
 
-    void writeProjectPropertiesFile (const File& file)
+    void writeProjectPropertiesFile (const File& file) const
     {
         MemoryOutputStream mo;
         mo << "# This file is used to override default values used by the Ant build system." << newLine
@@ -531,20 +545,20 @@ private:
         overwriteFileIfDifferentOrThrow (file, mo);
     }
 
-    void writeLocalPropertiesFile (const File& file)
+    void writeLocalPropertiesFile (const File& file) const
     {
         MemoryOutputStream mo;
         mo << "# This file is used to override default values used by the Ant build system." << newLine
            << "# It is automatically generated by the Introjucer - DO NOT EDIT IT or your changes will be lost!." << newLine
            << newLine
-           << "sdk.dir=" << escapeSpaces (replacePreprocessorDefs (getAllPreprocessorDefs(), getSDKPath().toString())) << newLine
-           << "ndk.dir=" << escapeSpaces (replacePreprocessorDefs (getAllPreprocessorDefs(), getNDKPath().toString())) << newLine
+           << "sdk.dir=" << escapeSpaces (replacePreprocessorDefs (getAllPreprocessorDefs(), getSDKPathString())) << newLine
+           << "ndk.dir=" << escapeSpaces (replacePreprocessorDefs (getAllPreprocessorDefs(), getNDKPathString())) << newLine
            << newLine;
 
         overwriteFileIfDifferentOrThrow (file, mo);
     }
 
-    void writeIcon (const File& file, const Image& im)
+    void writeIcon (const File& file, const Image& im) const
     {
         if (im.isValid())
         {
@@ -560,7 +574,7 @@ private:
         }
     }
 
-    void writeStringsFile (const File& file)
+    void writeStringsFile (const File& file) const
     {
         XmlElement strings ("resources");
         XmlElement* name = strings.createNewChildElement ("string");

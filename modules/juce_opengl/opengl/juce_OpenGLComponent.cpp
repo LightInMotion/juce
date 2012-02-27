@@ -23,6 +23,10 @@
   ==============================================================================
 */
 
+#if JUCE_ANDROID
+ void triggerAndroidOpenGLRepaint (OpenGLContext*);
+#endif
+
 class OpenGLComponent::OpenGLCachedComponentImage  : public CachedComponentImage,
                                                      public Timer // N.B. using a Timer rather than an AsyncUpdater
                                                                   // to avoid scheduling problems on Windows
@@ -54,8 +58,12 @@ public:
         {
             owner.updateContext();
 
+           #if JUCE_ANDROID
+            triggerAndroidOpenGLRepaint (owner.getCurrentContext());
+           #else
             if (isTimerRunning())
                 timerCallback();
+           #endif
         }
     }
 
@@ -90,8 +98,12 @@ public:
     {
         owner.needToRepaint = true;
 
+       #if JUCE_ANDROID
+        triggerAndroidOpenGLRepaint (owner.getCurrentContext());
+       #else
         if (! owner.isUsingDedicatedThread())
             startTimer (1000 / 70);
+       #endif
     }
 
     OpenGLFrameBuffer& getFrameBuffer (int width, int height)
@@ -220,7 +232,11 @@ void OpenGLComponent::stopRenderThread()
 
 //==============================================================================
 OpenGLComponent::OpenGLComponent (const int flags_)
+   #if JUCE_ANDROID
+    : flags (flags_ & ~useBackgroundThread),
+   #else
     : flags (flags_),
+   #endif
       contextToShareListsWith (nullptr),
       needToUpdateViewport (true),
       needToDeleteContext (false),

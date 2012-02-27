@@ -29,6 +29,8 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.*;
 import android.graphics.*;
@@ -114,7 +116,10 @@ public final class JuceDemo   extends Activity
 
     public final void deleteView (ComponentPeerView view)
     {
-        viewHolder.removeView (view);
+        ViewGroup group = (ViewGroup) (view.getParent());
+
+        if (group != null)
+            group.removeView (view);
     }
 
     final class ViewHolder  extends ViewGroup
@@ -246,6 +251,7 @@ public final class JuceDemo   extends Activity
         public ComponentPeerView (Context context, boolean opaque_)
         {
             super (context);
+            setWillNotDraw (false);
             opaque = opaque_;
 
             setFocusable (true);
@@ -260,6 +266,7 @@ public final class JuceDemo   extends Activity
         @Override
         public void draw (Canvas canvas)
         {
+            super.draw (canvas);
             handlePaint (canvas);
         }
 
@@ -295,11 +302,16 @@ public final class JuceDemo   extends Activity
         @Override
         protected void onSizeChanged (int w, int h, int oldw, int oldh)
         {
+            super.onSizeChanged (w, h, oldw, oldh);
             viewSizeChanged();
         }
 
         @Override
-        protected void onLayout (boolean changed, int left, int top, int right, int bottom) {}
+        protected void onLayout (boolean changed, int left, int top, int right, int bottom)
+        {
+            for (int i = getChildCount(); --i >= 0;)
+                requestTransparentRegion (getChildAt (i));
+        }
 
         private native void viewSizeChanged();
 
@@ -321,38 +333,42 @@ public final class JuceDemo   extends Activity
         {
             return true; //xxx needs to check overlapping views
         }
+
+        public OpenGLView createGLView()
+        {
+            OpenGLView glView = new OpenGLView (getContext());
+            addView (glView);
+            return glView;
+        }
     }
 
     //==============================================================================
-    public final class OpenGLView extends GLSurfaceView
-                                  implements GLSurfaceView.Renderer
+    public final class OpenGLView   extends GLSurfaceView
+                                    implements GLSurfaceView.Renderer
     {
-        public OpenGLView (ComponentPeerView parent)
+        OpenGLView (Context context)
         {
-        	super (parent.getContext());
-
+            super (context);
             setEGLContextClientVersion (2);
             setRenderer (this);
-
-        	parent.addView (this);
         }
 
+        @Override
         public void onSurfaceCreated (GL10 unused, EGLConfig config)
         {
             contextCreated();
         }
 
-        public void onDrawFrame (GL10 unused)
-        {
-            GLES20.glClearColor (1.0f, 0.5f, 0.0f, 1.0f);
-            GLES20.glClear (GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
-
-            render();
-        }
-
+        @Override
         public void onSurfaceChanged (GL10 unused, int width, int height)
         {
-            GLES20.glViewport (0, 0, width, height);
+            contextCreated();
+        }
+
+        @Override
+        public void onDrawFrame (GL10 unused)
+        {
+            render();
         }
 
         private native void contextCreated();
@@ -477,5 +493,10 @@ public final class JuceDemo   extends Activity
         {}
 
         return null;
+    }
+
+    public final void launchURL (String url)
+    {
+        startActivity (new Intent (Intent.ACTION_VIEW, Uri.parse (url)));
     }
 }

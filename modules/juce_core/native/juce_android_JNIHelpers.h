@@ -348,7 +348,6 @@ extern ThreadLocalJNIEnvHolder threadLocalJNIEnvHolder;
 #define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD) \
  METHOD (createNewView,          "createNewView",        "(Z)L" JUCE_ANDROID_ACTIVITY_CLASSPATH "$ComponentPeerView;") \
  METHOD (deleteView,             "deleteView",           "(L" JUCE_ANDROID_ACTIVITY_CLASSPATH "$ComponentPeerView;)V") \
- METHOD (launchURL,              "launchURL",            "(Ljava/lang/String;)V") \
  METHOD (postMessage,            "postMessage",          "(J)V") \
  METHOD (finish,                 "finish",               "()V") \
  METHOD (getClipboardContent,    "getClipboardContent",  "()Ljava/lang/String;") \

@@ -49,9 +49,11 @@ public:
 
         context.extensions.glGenFramebuffers (1, &frameBufferHandle);
         context.extensions.glBindFramebuffer (GL_FRAMEBUFFER, frameBufferHandle);
+        JUCE_CHECK_OPENGL_ERROR
 
         glGenTextures (1, &textureID);
         glBindTexture (GL_TEXTURE_2D, textureID);
+        JUCE_CHECK_OPENGL_ERROR
 
         glTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -59,6 +61,7 @@ public:
         glTexParameterf (GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
         glTexImage2D (GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+        JUCE_CHECK_OPENGL_ERROR
 
         context.extensions.glFramebufferTexture2D (GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureID, 0);
 
@@ -101,10 +104,21 @@ public:
 
         if (frameBufferHandle != 0)
             context.extensions.glDeleteFramebuffers (1, &frameBufferHandle);
+
+        JUCE_CHECK_OPENGL_ERROR
     }
 
-    void bind()    { context.extensions.glBindFramebuffer (GL_FRAMEBUFFER, frameBufferHandle); }
-    void unbind()  { context.extensions.glBindFramebuffer (GL_FRAMEBUFFER, 0); }
+    void bind()
+    {
+        context.extensions.glBindFramebuffer (GL_FRAMEBUFFER, frameBufferHandle);
+        JUCE_CHECK_OPENGL_ERROR
+    }
+
+    void unbind()
+    {
+        context.extensions.glBindFramebuffer (GL_FRAMEBUFFER, 0);
+        JUCE_CHECK_OPENGL_ERROR
+    }
 
     OpenGLContext& context;
     const int width, height;
@@ -196,10 +210,13 @@ bool OpenGLFrameBuffer::initialise (OpenGLFrameBuffer& other)
     {
         pimpl->bind();
 
+       #if ! JUCE_ANDROID
         glEnable (GL_TEXTURE_2D);
+       #endif
         glBindTexture (GL_TEXTURE_2D, p->textureID);
         pimpl->context.copyTexture (area, area);
         glBindTexture (GL_TEXTURE_2D, 0);
+        JUCE_CHECK_OPENGL_ERROR
 
         pimpl->unbind();
         return true;
@@ -292,9 +309,11 @@ bool OpenGLFrameBuffer::readPixels (PixelARGB* target, const Rectangle<int>& are
         return false;
 
     glPixelStorei (GL_PACK_ALIGNMENT, 4);
-    glReadPixels (area.getX(), area.getY(), area.getWidth(), area.getHeight(), GL_BGRA_EXT, GL_UNSIGNED_BYTE, target);
+    glReadPixels (area.getX(), area.getY(), area.getWidth(), area.getHeight(),
+                  JUCE_RGBA_FORMAT, GL_UNSIGNED_BYTE, target);
     pimpl->context.extensions.glBindFramebuffer (GL_FRAMEBUFFER, 0);
     glPixelStorei (GL_PACK_ALIGNMENT, 0);
+    JUCE_CHECK_OPENGL_ERROR
     return true;
 }
 
@@ -305,6 +324,7 @@ bool OpenGLFrameBuffer::writePixels (const PixelARGB* data, const Rectangle<int>
 
     glDisable (GL_DEPTH_TEST);
     glDisable (GL_BLEND);
+    JUCE_CHECK_OPENGL_ERROR
 
     OpenGLTexture tex;
     tex.loadARGBFlipped (data, area.getWidth(), area.getHeight());
@@ -359,7 +379,9 @@ void OpenGLFrameBuffer::drawAt (float x1, float y1) const
 {
     if (pimpl != nullptr)
     {
+       #if ! JUCE_ANDROID
         glEnable (GL_TEXTURE_2D);
+       #endif
         glBindTexture (GL_TEXTURE_2D, pimpl->textureID);
 
         glDisableClientState (GL_COLOR_ARRAY);

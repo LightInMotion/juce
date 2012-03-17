@@ -82,6 +82,9 @@ public:
     /** Returns the height of this context */
     virtual int getHeight() const = 0;
 
+    /** Updates the native context's area within its parent. */
+    virtual void updateWindowPosition (const Rectangle<int>&) = 0;
+
     /** If this context is backed by a frame buffer, this returns its ID number, or
         0 if the context has no accessible framebuffer.
     */
@@ -112,9 +115,14 @@ public:
         @param anchorPosAndTextureSize  the position of this rectangle is the texture's top-left
                                         anchor position in the target space, and the size must be
                                         the total size of the texture.
+        @param contextWidth     the width of the context or framebuffer that is being drawn into,
+                                used for scaling of the coordinates.
+        @param contextHeight    the height of the context or framebuffer that is being drawn into,
+                                used for vertical flipping of the y coordinates.
     */
     void copyTexture (const Rectangle<int>& targetClipArea,
-                      const Rectangle<int>& anchorPosAndTextureSize);
+                      const Rectangle<int>& anchorPosAndTextureSize,
+                      int contextWidth, int contextHeight);
 
 protected:
     //==============================================================================

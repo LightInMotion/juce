@@ -744,7 +744,6 @@ public:
     LinuxComponentPeer (Component* const component, const int windowStyleFlags, Window parentToAddTo)
         : ComponentPeer (component, windowStyleFlags),
           windowH (0), parentWindow (0),
-          wx (0), wy (0), ww (0), wh (0),
           fullScreen (false), mapped (false),
           visual (0), depth (0)
     {
@@ -814,12 +813,12 @@ public:
 
     void setBounds (int x, int y, int w, int h, bool isNowFullScreen)
     {
-        // transitioning back from fullscreen, we might need to remove
-        // the FULLSCREEN window property
-        if (fullScreen && (! isNowFullScreen))
+        if (fullScreen && ! isNowFullScreen)
         {
+            // When transitioning back from fullscreen, we might need to remove
+            // the FULLSCREEN window property
             Atom fs = Atoms::getIfExists ("_NET_WM_STATE_FULLSCREEN");
-        
+
             if (fs != None)
             {
                 Window root = RootWindow (display, DefaultScreen (display));
@@ -836,8 +835,8 @@ public:
                 clientMsg.data.l[3] = 1;  // Normal Source
 
                 ScopedXLock xlock;
-                XSendEvent (display, root, false, 
-                            SubstructureRedirectMask | SubstructureNotifyMask, 
+                XSendEvent (display, root, false,
+                            SubstructureRedirectMask | SubstructureNotifyMask,
                             (XEvent*) &clientMsg);
             }
         }
@@ -846,22 +845,17 @@ public:
 
         if (windowH != 0)
         {
+            bounds.setBounds (x, y, jmax (1, w), jmax (1, h));
+
             WeakReference<Component> deletionChecker (component);
-
-            wx = x;
-            wy = y;
-            ww = jmax (1, w);
-            wh = jmax (1, h);
-
             ScopedXLock xlock;
 
-            // Make sure the Window manager does what we want
-            XSizeHints* hints = XAllocSizeHints();
-            hints->flags = USSize | USPosition;
-            hints->width = ww;
-            hints->height = wh;
-            hints->x = wx;
-            hints->y = wy;
+            XSizeHints* const hints = XAllocSizeHints();
+            hints->flags  = USSize | USPosition;
+            hints->x      = bounds.getX();
+            hints->y      = bounds.getY();
+            hints->width  = bounds.getWidth();
+            hints->height = bounds.getHeight();
 
             if ((getStyleFlags() & (windowHasTitleBar | windowIsResizable)) == windowHasTitleBar)
             {
@@ -874,10 +868,12 @@ public:
             XFree (hints);
 
             XMoveResizeWindow (display, windowH,
-                               wx - windowBorder.getLeft(),
-                               wy - windowBorder.getTop(), ww, wh);
+                               bounds.getX() - windowBorder.getLeft(),
+                               bounds.getY() - windowBorder.getTop(),
+                               bounds.getWidth(),
+                               bounds.getHeight());
 
-            if (deletionChecker != 0)
+            if (deletionChecker != nullptr)
             {
                 updateBorderSize();
                 handleMovedOrResized();
@@ -885,10 +881,10 @@ public:
         }
     }
 
-    void setPosition (int x, int y)           { setBounds (x, y, ww, wh, false); }
-    void setSize (int w, int h)               { setBounds (wx, wy, w, h, false); }
-    Rectangle<int> getBounds() const          { return Rectangle<int> (wx, wy, ww, wh); }
-    Point<int> getScreenPosition() const      { return Point<int> (wx, wy); }
+    void setPosition (int x, int y)           { setBounds (x, y, bounds.getWidth(), bounds.getHeight(), false); }
+    void setSize (int w, int h)               { setBounds (bounds.getX(), bounds.getY(), w, h, false); }
+    Rectangle<int> getBounds() const          { return bounds; }
+    Point<int> getScreenPosition() const      { return bounds.getPosition(); }
 
     Point<int> localToGlobal (const Point<int>& relativePosition)
     {
@@ -1026,7 +1022,7 @@ public:
 
     bool contains (const Point<int>& position, bool trueIfInAChildWindow) const
     {
-        if (! (isPositiveAndBelow (position.getX(), ww) && isPositiveAndBelow (position.getY(), wh)))
+        if (! bounds.withZeroOrigin().contains (position))
             return false;
 
         for (int i = Desktop::getInstance().getNumComponents(); --i >= 0;)
@@ -1036,7 +1032,7 @@ public:
             if (c == getComponent())
                 break;
 
-            if (c->contains (position + Point<int> (wx, wy) - c->getScreenPosition()))
+            if (c->contains (position + bounds.getPosition() - c->getScreenPosition()))
                 return false;
         }
 
@@ -1044,21 +1040,14 @@ public:
             return true;
 
         ::Window root, child;
-        unsigned int bw, depth;
-        int wx, wy, w, h;
+        int wx, wy;
+        unsigned int ww, wh, bw, depth;
 
         ScopedXLock xlock;
-        if (! XGetGeometry (display, (::Drawable) windowH, &root,
-                            &wx, &wy, (unsigned int*) &w, (unsigned int*) &h,
-                            &bw, &depth))
-        {
-            return false;
-        }
 
-        if (! XTranslateCoordinates (display, windowH, windowH, position.getX(), position.getY(), &wx, &wy, &child))
-            return false;
-
-        return child == None;
+        return XGetGeometry (display, (::Drawable) windowH, &root, &wx, &wy, &ww, &wh, &bw, &depth)
+                && XTranslateCoordinates (display, windowH, windowH, position.getX(), position.getY(), &wx, &wy, &child)
+                && child == None;
     }
 
     BorderSize<int> getFrameSize() const
@@ -1849,7 +1838,7 @@ private:
 
     friend class LinuxRepaintManager;
     Window windowH, parentWindow;
-    int wx, wy, ww, wh;
+    Rectangle<int> bounds;
     Image taskbarImage;
     bool fullScreen, mapped;
     Visual* visual;
@@ -2258,19 +2247,16 @@ private:
         if (windowH != 0)
         {
             Window root, child;
-            unsigned int bw, depth;
+            int wx = 0, wy = 0;
+            unsigned int ww = 0, wh = 0, bw, depth;
+
             ScopedXLock xlock;
 
-            if (! XGetGeometry (display, (::Drawable) windowH, &root,
-                                &wx, &wy, (unsigned int*) &ww, (unsigned int*) &wh,
-                                &bw, &depth))
-            {
-                wx = wy = ww = wh = 0;
-            }
-            else if (! XTranslateCoordinates (display, windowH, root, 0, 0, &wx, &wy, &child))
-            {
-                wx = wy = 0;
-            }
+            if (XGetGeometry (display, (::Drawable) windowH, &root, &wx, &wy, &ww, &wh, &bw, &depth))
+                if (! XTranslateCoordinates (display, windowH, root, 0, 0, &wx, &wy, &child))
+                    wx = wy = 0;
+
+            bounds.setBounds (wx, wy, ww, wh);
         }
     }
 

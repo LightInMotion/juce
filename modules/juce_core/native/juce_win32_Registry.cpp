@@ -136,14 +136,14 @@ void WindowsRegistry::registerFileAssociation (const String& fileExtension,
                                                const File& targetExecutable,
                                                int iconResourceNumber)
 {
-    setValue ("HKEY_CLASSES_ROOT\\" + fileExtension + "\\", symbolicDescription);
+    setValue ("HKEY_CURRENT_USER\\Software\\Classes\\" + fileExtension + "\\", symbolicDescription);
 
-    const String key ("HKEY_CLASSES_ROOT\\" + symbolicDescription);
+    const String key ("HKEY_CURRENT_USER\\Software\\Classes\\" + symbolicDescription);
 
     if (iconResourceNumber != 0)
         setValue (key + "\\DefaultIcon\\",
                   targetExecutable.getFullPathName() + "," + String (-iconResourceNumber));
 
     setValue (key + "\\", fullDescription);
-    setValue (key + "\\shell\\open\\command\\", targetExecutable.getFullPathName() + " %1");
+    setValue (key + "\\shell\\open\\command\\", targetExecutable.getFullPathName() + " \"%1\"");
 }

@@ -23,7 +23,6 @@
   ==============================================================================
 */
 
-
 bool NamedPipe::openExisting (const String& pipeName)
 {
     currentPipeName = pipeName;
@@ -34,11 +33,6 @@ bool NamedPipe::createNewPipe (const String& pipeName)
 {
     currentPipeName = pipeName;
     return openInternal (pipeName, true);
-}
-
-bool NamedPipe::isOpen() const
-{
-    return pimpl != nullptr;
 }
 
 String NamedPipe::getName() const

@@ -23,7 +23,6 @@
   ==============================================================================
 */
 
-
 class SimpleDeviceManagerInputLevelMeter  : public Component,
                                             public Timer
 {
@@ -498,7 +497,7 @@ private:
     {
         if (box != nullptr)
         {
-            AudioIODevice* const currentDevice = dynamic_cast <AudioIODevice*> (setup.manager->getCurrentAudioDevice());
+            AudioIODevice* const currentDevice = setup.manager->getCurrentAudioDevice();
 
             const int index = type->getIndexOfDevice (currentDevice, isInput);
 

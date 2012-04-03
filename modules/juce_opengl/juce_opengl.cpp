@@ -113,6 +113,10 @@
  #undef KeyPress
 
 //==============================================================================
+#elif JUCE_MAC
+ #include <OpenGL/CGLCurrent.h>
+
+//==============================================================================
 #elif JUCE_ANDROID
  #ifndef GL_GLEXT_PROTOTYPES
   #define GL_GLEXT_PROTOTYPES 1
@@ -132,9 +136,14 @@ void OpenGLExtensionFunctions::initialise()
    #if JUCE_WINDOWS || JUCE_LINUX
     #define JUCE_INIT_GL_FUNCTION(name, returnType, params, callparams) \
         name = (type_ ## name) OpenGLHelpers::getExtensionFunction (#name);
+    #define JUCE_INIT_GL_FUNCTION_EXT(name, returnType, params, callparams) \
+        name = (type_ ## name) OpenGLHelpers::getExtensionFunction (#name); \
+        if (name == nullptr) \
+            name = (type_ ## name) OpenGLHelpers::getExtensionFunction (JUCE_STRINGIFY (name ## EXT));
 
-    JUCE_GL_EXTENSION_FUNCTIONS (JUCE_INIT_GL_FUNCTION)
+    JUCE_GL_EXTENSION_FUNCTIONS (JUCE_INIT_GL_FUNCTION, JUCE_INIT_GL_FUNCTION_EXT)
     #undef JUCE_INIT_GL_FUNCTION
+    #undef JUCE_INIT_GL_FUNCTION_EXT
    #endif
 }
 
@@ -142,7 +151,7 @@ void OpenGLExtensionFunctions::initialise()
  #define JUCE_DECLARE_GL_FUNCTION(name, returnType, params, callparams) \
     inline returnType OpenGLExtensionFunctions::name params { return ::name callparams; }
 
- JUCE_GL_EXTENSION_FUNCTIONS (JUCE_DECLARE_GL_FUNCTION)
+ JUCE_GL_EXTENSION_FUNCTIONS (JUCE_DECLARE_GL_FUNCTION, JUCE_DECLARE_GL_FUNCTION)
  #undef JUCE_DECLARE_GL_FUNCTION
 #endif
 
@@ -196,24 +205,19 @@ static void checkGLError (const char* file, const int line)
  #define JUCE_CHECK_OPENGL_ERROR ;
 #endif
 
+static void clearGLError()
+{
+    while (glGetError() != GL_NO_ERROR) {}
+}
+
 //==============================================================================
-// START_AUTOINCLUDE opengl/*.cpp
-#include "opengl/juce_OpenGLComponent.cpp"
-#include "opengl/juce_OpenGLContext.cpp"
 #include "opengl/juce_OpenGLFrameBuffer.cpp"
 #include "opengl/juce_OpenGLGraphicsContext.cpp"
 #include "opengl/juce_OpenGLHelpers.cpp"
 #include "opengl/juce_OpenGLImage.cpp"
+#include "opengl/juce_OpenGLPixelFormat.cpp"
 #include "opengl/juce_OpenGLShaderProgram.cpp"
 #include "opengl/juce_OpenGLTexture.cpp"
-// END_AUTOINCLUDE
-
-}
-
-using namespace juce;
-
-namespace juce
-{
 
 //==============================================================================
 #if JUCE_MAC || JUCE_IOS
@@ -222,21 +226,23 @@ namespace juce
  #include "../juce_graphics/native/juce_mac_CoreGraphicsHelpers.h"
 
  #if JUCE_MAC
-  #include "native/juce_mac_OpenGLComponent.mm"
+  #include "native/juce_OpenGL_osx.h"
  #else
-  #include "native/juce_ios_OpenGLComponent.mm"
+  #include "native/juce_OpenGL_ios.h"
  #endif
 
 #elif JUCE_WINDOWS
- #include "native/juce_win32_OpenGLComponent.cpp"
+ #include "native/juce_OpenGL_win32.h"
 
 #elif JUCE_LINUX
- #include "native/juce_linux_OpenGLComponent.cpp"
+ #include "native/juce_OpenGL_linux.h"
 
 #elif JUCE_ANDROID
  #include "../juce_core/native/juce_android_JNIHelpers.h"
- #include "native/juce_android_OpenGLComponent.cpp"
+ #include "native/juce_OpenGL_android.h"
 
 #endif
+
+#include "opengl/juce_OpenGLContext.cpp"
 
 }

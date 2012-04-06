@@ -101,17 +101,21 @@ public:
     }
 
     //==============================================================================
-    void ensureFrameBufferSize (int width, int height)
+    bool ensureFrameBufferSize (int width, int height)
     {
         const int fbW = cachedImageFrameBuffer.getWidth();
         const int fbH = cachedImageFrameBuffer.getHeight();
 
         if (fbW != width || fbH != height || ! cachedImageFrameBuffer.isValid())
         {
-            cachedImageFrameBuffer.initialise (context, width, height);
+            if (! cachedImageFrameBuffer.initialise (context, width, height))
+                return false;
+
             validArea.clear();
             JUCE_CHECK_OPENGL_ERROR
         }
+
+        return true;
     }
 
     void clearRegionInFrameBuffer (const RectangleList& list)
@@ -139,6 +143,8 @@ public:
         if (! context.makeActive())
             return false;
 
+        NativeContext::Locker locker (*nativeContext);
+
         JUCE_CHECK_OPENGL_ERROR
         glViewport (0, 0, component.getWidth(), component.getHeight());
 
@@ -165,11 +171,12 @@ public:
 
             needsUpdate = false;
 
-            // you mustn't set your own cached image object for an OpenGLComponent!
+            // you mustn't set your own cached image object when attaching a GL context!
             jassert (get (component) == this);
 
             const Rectangle<int> bounds (component.getLocalBounds());
-            ensureFrameBufferSize (bounds.getWidth(), bounds.getHeight());
+            if (! ensureFrameBufferSize (bounds.getWidth(), bounds.getHeight()))
+                return;
 
             RectangleList invalid (bounds);
             invalid.subtract (validArea);

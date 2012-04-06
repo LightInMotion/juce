@@ -112,7 +112,10 @@ public:
     void* getRawContext() const noexcept            { return renderContext; }
     unsigned int getFrameBufferID() const noexcept  { return 0; }
 
+    struct Locker { Locker (NativeContext&) {} };
+
 private:
+    Component dummyComponent;
     ScopedPointer<ComponentPeer> nativeWindow;
     HGLRC renderContext;
     HDC dc;
@@ -137,7 +140,7 @@ private:
     void createNativeWindow (Component& component)
     {
         Component* topComp = component.getTopLevelComponent();
-        nativeWindow = createNonRepaintingEmbeddedWindowsPeer (&component, topComp->getWindowHandle());
+        nativeWindow = createNonRepaintingEmbeddedWindowsPeer (&dummyComponent, topComp->getWindowHandle());
         updateWindowPosition (topComp->getLocalArea (&component, component.getLocalBounds()));
         nativeWindow->setVisible (true);
         dc = GetDC ((HWND) nativeWindow->getNativeHandle());

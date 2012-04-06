@@ -141,6 +141,14 @@ public:
         props.add (new TextPropertyComponent (getExtraFrameworksValue(), "Extra Frameworks", 2048, false),
                    "A comma-separated list of extra frameworks that should be added to the build. "
                    "(Don't include the .framework extension in the name)");
+
+        if (projectType.isLibrary())
+        {
+            const char* const libTypes[] = { "Static Library (.a)", "Dynamic Library (.dylib)", 0 };
+            const int libTypeValues[] = { 1, 2, 0 };
+            props.add (new ChoicePropertyComponent (getLibraryType(), "Library Type",
+                                                    StringArray (libTypes), Array<var> (libTypeValues)));
+        }
     }
 
     void launchProject()
@@ -172,6 +180,10 @@ public:
     }
 
 protected:
+    Value getLibraryType()          { return getSetting (Ids::libraryType); }
+    bool isStaticLibrary() const    { return projectType.isLibrary() && (int) settings [Ids::libraryType] == 1; }
+
+
     //==============================================================================
     class XcodeBuildConfiguration  : public BuildConfiguration
     {
@@ -306,7 +318,7 @@ private:
         addConfigList (projectConfigs, createID ("__projList"));
         addConfigList (targetConfigs, createID ("__configList"));
 
-        if (! projectType.isLibrary())
+        if (! isStaticLibrary())
             addBuildPhase ("PBXResourcesBuildPhase", resourceIDs);
 
         if (rezFileIDs.size() > 0)
@@ -314,7 +326,7 @@ private:
 
         addBuildPhase ("PBXSourcesBuildPhase", sourceIDs);
 
-        if (! projectType.isLibrary())
+        if (! isStaticLibrary())
             addBuildPhase ("PBXFrameworksBuildPhase", frameworkIDs);
 
         addShellScriptPhase();
@@ -631,8 +643,7 @@ private:
             const String sdk (config.getMacSDKVersion());
             const String sdkCompat (config.getMacCompatibilityVersion());
 
-            if (sdk == osxVersion10_4)        { s.add ("SDKROOT = macosx10.4"); gccVersion = "4.0"; }
-            else if (sdk == osxVersion10_5)     s.add ("SDKROOT = macosx10.5");
+            if (sdk == osxVersion10_5)     s.add ("SDKROOT = macosx10.5");
             else if (sdk == osxVersion10_6)     s.add ("SDKROOT = macosx10.6");
             else if (sdk == osxVersion10_7)     s.add ("SDKROOT = macosx10.7");
 
@@ -642,6 +653,7 @@ private:
             else if (sdkCompat == osxVersion10_7)  s.add ("MACOSX_DEPLOYMENT_TARGET = 10.7");
 
             s.add ("MACOSX_DEPLOYMENT_TARGET_ppc = 10.4");
+            s.add ("SDKROOT_ppc = macosx10.5");
 
             if (xcodeExcludedFiles64Bit.isNotEmpty())
             {
@@ -726,7 +738,7 @@ private:
 
     void addFrameworks() const
     {
-        if (! projectType.isLibrary())
+        if (! isStaticLibrary())
         {
             StringArray s (xcodeFrameworks);
             s.addTokens (getExtraFrameworksString(), ",;", "\"'");

@@ -23,8 +23,6 @@
   ==============================================================================
 */
 
-#if JUCE_WINDOWS
-
 namespace WindowsMediaCodec
 {
 
@@ -142,7 +140,7 @@ public:
 
         if (wmCreateSyncReader != nullptr)
         {
-            CoInitialize (0);
+            checkCoInitialiseCalled();
 
             HRESULT hr = wmCreateSyncReader (nullptr, WMT_RIGHT_PLAYBACK, wmSyncReader.resetAndGetPointerAddress());
 
@@ -174,6 +172,8 @@ public:
     {
         if (sampleRate <= 0)
             return false;
+
+        checkCoInitialiseCalled();
 
         if (startSampleInFile != currentPosition)
         {
@@ -253,6 +253,15 @@ private:
     int64 currentPosition;
     MemoryBlock buffer;
     int bufferStart, bufferEnd;
+
+    void checkCoInitialiseCalled()
+    {
+        APTTYPE dummy1;
+        APTTYPEQUALIFIER dummy2;
+
+        if (CoGetApartmentType (&dummy1, &dummy2) == CO_E_NOTINITIALIZED)
+            CoInitialize (0);
+    }
 
     void scanFileForDetails()
     {
@@ -345,5 +354,3 @@ AudioFormatWriter* WindowsMediaAudioFormat::createWriterFor (OutputStream* /*str
     jassertfalse; // not yet implemented!
     return nullptr;
 }
-
-#endif

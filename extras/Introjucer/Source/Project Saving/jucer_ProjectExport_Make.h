@@ -102,8 +102,7 @@ protected:
         MakeBuildConfiguration (Project& project, const ValueTree& settings)
             : BuildConfiguration (project, settings)
         {
-            if (getLibrarySearchPathValue().getValue().isVoid())
-                getLibrarySearchPathValue() = "/usr/X11R6/lib/";
+            setValueIfVoid (getLibrarySearchPathValue(), "/usr/X11R6/lib/");
         }
 
         void createPropertyEditors (PropertyListBuilder& props)
@@ -182,7 +181,7 @@ private:
 
         out << config.getGCCLibraryPathFlags();
 
-        const char* defaultLibs[] = { "dl", "freetype", "pthread", "rt", "X11", "GL", "GLU", "Xinerama", "asound", "Xext", 0 };
+        const char* defaultLibs[] = { "dl", "freetype", "pthread", "rt", "X11", "GL", "Xinerama", "asound", "Xext", 0 };
         StringArray libs (defaultLibs);
 
         for (int i = 0; i < libs.size(); ++i)

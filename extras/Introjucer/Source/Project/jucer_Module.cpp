@@ -526,8 +526,9 @@ void LibraryModule::prepareExporter (ProjectExporter& exporter, ProjectSaver& pr
     if (isPluginClient())
     {
         if (shouldBuildVST  (project).getValue())  VSTHelpers::prepareExporter (exporter, projectSaver);
-        if (shouldBuildRTAS (project).getValue())  RTASHelpers::prepareExporter (exporter, projectSaver, localFolder);
         if (shouldBuildAU   (project).getValue())  AUHelpers::prepareExporter (exporter, projectSaver);
+        if (shouldBuildRTAS (project).getValue())  RTASHelpers::prepareExporter (exporter, projectSaver, localFolder);
+        if (shouldBuildAAX  (project).getValue())  AAXHelpers::prepareExporter (exporter, projectSaver, localFolder);
     }
 }
 
@@ -540,6 +541,7 @@ void LibraryModule::createPropertyEditors (ProjectExporter& exporter, PropertyLi
     {
         if (shouldBuildVST  (exporter.getProject()).getValue())  VSTHelpers::createPropertyEditors (exporter, props);
         if (shouldBuildRTAS (exporter.getProject()).getValue())  RTASHelpers::createPropertyEditors (exporter, props);
+        if (shouldBuildAAX  (exporter.getProject()).getValue())  AAXHelpers::createPropertyEditors (exporter, props);
     }
 }
 
@@ -582,16 +584,23 @@ void LibraryModule::getConfigFlags (Project& project, OwnedArray<Project::Config
 }
 
 //==============================================================================
+static bool exporterTargetMatches (const String& test, String target)
+{
+    target = target.trim();
+
+    if (target.startsWithChar ('!'))
+        return ! exporterTargetMatches (test, target.substring (1).trimStart());
+
+    return target == test || target.isEmpty();
+}
+
 bool LibraryModule::fileTargetMatches (ProjectExporter& exporter, const String& target)
 {
-    if (target.startsWithChar ('!'))
-        return ! fileTargetMatches (exporter, target.substring (1).trim());
-
-    if (target == "xcode")  return exporter.isXcode();
-    if (target == "msvc")   return exporter.isVisualStudio();
-    if (target == "linux")  return exporter.isLinux();
-
-    return true;
+    if (exporter.isXcode())         return exporterTargetMatches ("xcode", target);
+    if (exporter.isVisualStudio())  return exporterTargetMatches ("msvc", target);
+    if (exporter.isLinux())         return exporterTargetMatches ("linux", target);
+    if (exporter.isAndroid())       return exporterTargetMatches ("android", target);
+    return target.isEmpty();
 }
 
 void LibraryModule::findWildcardMatches (const File& localModuleFolder, const String& wildcardPath, Array<File>& result) const
@@ -643,6 +652,35 @@ void LibraryModule::findAndAddCompiledCode (ProjectExporter& exporter, ProjectSa
     }
 }
 
+void LibraryModule::getLocalCompiledFiles (Array<File>& result) const
+{
+    const var compileArray (moduleInfo ["compile"]); // careful to keep this alive while the array is in use!
+    const Array<var>* const files = compileArray.getArray();
+
+    if (files != nullptr)
+    {
+        for (int i = 0; i < files->size(); ++i)
+        {
+            const var& file = files->getReference(i);
+            const String filename (file ["file"].toString());
+
+            if (filename.isNotEmpty()
+                  #if JUCE_MAC
+                   && exporterTargetMatches ("xcode", file ["target"].toString())
+                  #elif JUCE_WINDOWS
+                   && exporterTargetMatches ("msvc",  file ["target"].toString())
+                  #elif JUCE_LINUX
+                   && exporterTargetMatches ("linux", file ["target"].toString())
+                  #endif
+                )
+            {
+                const File compiledFile (moduleFolder.getChildFile (filename));
+                result.add (compiledFile);
+            }
+        }
+    }
+}
+
 static void addFileWithGroups (Project::Item& group, const RelativePath& file, const String& path)
 {
     const int slash = path.indexOfChar (File::separator);
@@ -679,7 +717,7 @@ void LibraryModule::addBrowsableCode (ProjectExporter& exporter, const Array<Fil
 
     for (int i = 0; i < sourceFiles.size(); ++i)
     {
-        const String pathWithinModule (sourceFiles.getReference(i).getRelativePathFrom (localModuleFolder));
+        const String pathWithinModule (FileHelpers::getRelativePathFrom (sourceFiles.getReference(i), localModuleFolder));
 
         // (Note: in exporters like MSVC we have to avoid adding the same file twice, even if one of those instances
         // is flagged as being excluded from the build, because this overrides the other and it fails to compile)
@@ -689,7 +727,7 @@ void LibraryModule::addBrowsableCode (ProjectExporter& exporter, const Array<Fil
                                pathWithinModule);
     }
 
-    sourceGroup.addFile (localModuleFolder.getChildFile (moduleFile.getRelativePathFrom (moduleFolder)), -1, false);
+    sourceGroup.addFile (localModuleFolder.getChildFile (FileHelpers::getRelativePathFrom (moduleFile, moduleFolder)), -1, false);
     sourceGroup.addFile (getInclude (localModuleFolder), -1, false);
 
     exporter.getModulesGroup().state.addChild (sourceGroup.state.createCopy(), -1, nullptr);

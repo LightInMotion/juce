@@ -281,10 +281,8 @@ namespace
         return value == -1 ? getResultForErrno() : Result::ok();
     }
 
-    int getFD (void* handle) noexcept
-    {
-        return (int) (pointer_sized_int) handle;
-    }
+    int getFD (void* handle) noexcept        { return (int) (pointer_sized_int) handle; }
+    void* fdToVoidPointer (int fd) noexcept  { return (void*) (pointer_sized_int) fd; }
 }
 
 bool File::isDirectory() const
@@ -420,7 +418,7 @@ void FileInputStream::openHandle()
     const int f = open (file.getFullPathName().toUTF8(), O_RDONLY, 00644);
 
     if (f != -1)
-        fileHandle = (void*) f;
+        fileHandle = fdToVoidPointer (f);
     else
         status = getResultForErrno();
 }
@@ -465,7 +463,7 @@ void FileOutputStream::openHandle()
 
             if (currentPosition >= 0)
             {
-                fileHandle = (void*) f;
+                fileHandle = fdToVoidPointer (f);
             }
             else
             {
@@ -483,7 +481,7 @@ void FileOutputStream::openHandle()
         const int f = open (file.getFullPathName().toUTF8(), O_RDWR + O_CREAT, 00644);
 
         if (f != -1)
-            fileHandle = (void*) f;
+            fileHandle = fdToVoidPointer (f);
         else
             status = getResultForErrno();
     }
@@ -566,6 +564,7 @@ MemoryMappedFile::~MemoryMappedFile()
 }
 
 //==============================================================================
+File juce_getExecutableFile();
 File juce_getExecutableFile()
 {
    #if JUCE_ANDROID
@@ -661,12 +660,14 @@ int File::getVolumeSerialNumber() const
 }
 
 //==============================================================================
+void juce_runSystemCommand (const String&);
 void juce_runSystemCommand (const String& command)
 {
     int result = system (command.toUTF8());
     (void) result;
 }
 
+String juce_getOutputFromCommand (const String&);
 String juce_getOutputFromCommand (const String& command)
 {
     // slight bodge here, as we just pipe the output into a temp file and read it...
@@ -805,6 +806,7 @@ void InterProcessLock::exit()
 //==============================================================================
 void JUCE_API juce_threadEntryPoint (void*);
 
+extern "C" void* threadEntryProc (void*);
 extern "C" void* threadEntryProc (void* userData)
 {
     JUCE_AUTORELEASEPOOL
@@ -857,6 +859,7 @@ void Thread::killThread()
 void Thread::setCurrentThreadName (const String& name)
 {
    #if JUCE_IOS || (JUCE_MAC && defined (MAC_OS_X_VERSION_10_5) && MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_5)
+    JUCE_AUTORELEASEPOOL
     [[NSThread currentThread] setName: juceStringToNS (name)];
    #elif JUCE_LINUX
     prctl (PR_SET_NAME, name.toUTF8().getAddress(), 0, 0, 0);

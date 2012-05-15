@@ -46,10 +46,9 @@ class AudioThumbnailCache;
     The thumbnail stores an internal low-res version of the wave data, and this can
     be loaded and saved to avoid having to scan the file again.
 
-    @see AudioThumbnailCache
+    @see AudioThumbnailCache, AudioThumbnailBase
 */
-class JUCE_API  AudioThumbnail    : public ChangeBroadcaster,
-                                    public AudioFormatWriter::ThreadedWriter::IncomingDataReceiver
+class JUCE_API  AudioThumbnail    : public AudioThumbnailBase
 {
 public:
     //==============================================================================

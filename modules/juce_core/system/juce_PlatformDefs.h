@@ -60,7 +60,7 @@
 #endif
 
 //==============================================================================
-#if JUCE_MAC || JUCE_IOS || JUCE_LINUX || JUCE_ANDROID
+#if JUCE_IOS || JUCE_LINUX || JUCE_ANDROID || JUCE_PPC
   /** This will try to break into the debugger if the app is currently being debugged.
       If called by an app that's not being debugged, the behaiour isn't defined - it may crash or not, depending
       on the platform.
@@ -72,8 +72,12 @@
     #pragma intrinsic (__debugbreak)
   #endif
   #define juce_breakDebugger        { __debugbreak(); }
-#elif JUCE_GCC
-  #define juce_breakDebugger        { asm("int $3"); }
+#elif JUCE_GCC || JUCE_MAC
+  #if JUCE_NO_INLINE_ASM
+   #define juce_breakDebugger       { }
+  #else
+   #define juce_breakDebugger       { asm ("int $3"); }
+  #endif
 #else
   #define juce_breakDebugger        { __asm int 3 }
 #endif
@@ -213,11 +217,11 @@ namespace juce
     #define JUCE_CATCH_EXCEPTION \
       catch (const std::exception& e)  \
       { \
-          JUCEApplication::sendUnhandledException (&e, __FILE__, __LINE__); \
+          juce::JUCEApplication::sendUnhandledException (&e, __FILE__, __LINE__); \
       } \
       catch (...) \
       { \
-          JUCEApplication::sendUnhandledException (nullptr, __FILE__, __LINE__); \
+          juce::JUCEApplication::sendUnhandledException (nullptr, __FILE__, __LINE__); \
       }
   #endif
 

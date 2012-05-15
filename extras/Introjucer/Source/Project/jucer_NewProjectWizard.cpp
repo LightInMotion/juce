@@ -159,6 +159,8 @@ public:
             sourceGroup.addFile (mainCppFile, -1, true);
         }
 
+        project.createDefaultExporters();
+
         return true;
     }
 
@@ -397,7 +399,6 @@ Project* NewProjectWizard::runWizard (Component* ownerWindow_,
     {
         project->setFile (projectFile);
         project->setTitle (appTitle);
-        project->setBundleIdentifierToDefault();
 
         if (! initialiseProject (*project))
             return nullptr;

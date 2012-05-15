@@ -85,7 +85,7 @@ namespace WavFileHelpers
         uint8 reserved[190];
         char codingHistory[1];
 
-        void copyTo (StringPairArray& values) const
+        void copyTo (StringPairArray& values, const int totalSize) const
         {
             values.set (WavAudioFormat::bwavDescription, String::fromUTF8 (description, 256));
             values.set (WavAudioFormat::bwavOriginator, String::fromUTF8 (originator, 32));
@@ -98,7 +98,8 @@ namespace WavFileHelpers
             const int64 time = (((int64)timeHigh) << 32) + timeLow;
 
             values.set (WavAudioFormat::bwavTimeReference, String (time));
-            values.set (WavAudioFormat::bwavCodingHistory, String::fromUTF8 (codingHistory));
+            values.set (WavAudioFormat::bwavCodingHistory,
+                        String::fromUTF8 (codingHistory, totalSize - offsetof (BWAVChunk, codingHistory)));
         }
 
         static MemoryBlock createFrom (const StringPairArray& values)
@@ -358,8 +359,8 @@ namespace WavFileHelpers
     //==============================================================================
     namespace ListChunk
     {
-        void appendLabelOrNoteChunk (const StringPairArray& values, const String& prefix,
-                                     const int chunkType, MemoryOutputStream& out)
+        static void appendLabelOrNoteChunk (const StringPairArray& values, const String& prefix,
+                                            const int chunkType, MemoryOutputStream& out)
         {
             const String label (values.getValue (prefix + "Text", prefix));
             const int labelLength = label.getNumBytesAsUTF8() + 1;
@@ -374,7 +375,7 @@ namespace WavFileHelpers
                 out.writeByte (0);
         }
 
-        void appendExtraChunk (const StringPairArray& values, const String& prefix, MemoryOutputStream& out)
+        static void appendExtraChunk (const StringPairArray& values, const String& prefix, MemoryOutputStream& out)
         {
             const String text (values.getValue (prefix + "Text", prefix));
 
@@ -396,7 +397,7 @@ namespace WavFileHelpers
                 out.writeByte (0);
         }
 
-        void create (MemoryBlock& block, const StringPairArray& values)
+        static void create (MemoryBlock& block, const StringPairArray& values)
         {
             const int numCueLabels  = values.getValue ("NumCueLabels", "0").getIntValue();
             const int numCueNotes   = values.getValue ("NumCueNotes", "0").getIntValue();
@@ -544,7 +545,9 @@ public:
                         }
                         else
                         {
-                            input->skipNextBytes (10); // skip over bitsPerSample and speakerPosition mask
+                            input->skipNextBytes (6); // skip over bitsPerSample
+                            metadataValues.set ("ChannelMask", String (input->readInt()));
+
                             ExtensibleWavSubFormat subFormat;
                             subFormat.data1 = (uint32) input->readInt();
                             subFormat.data2 = (uint16) input->readShort();
@@ -589,7 +592,7 @@ public:
                     HeapBlock <BWAVChunk> bwav;
                     bwav.calloc (jmax ((size_t) length + 1, sizeof (BWAVChunk)), 1);
                     input->read (bwav, (int) length);
-                    bwav->copyTo (metadataValues);
+                    bwav->copyTo (metadataValues, (int) length);
                 }
                 else if (chunkType == chunkName ("smpl"))
                 {
@@ -843,6 +846,8 @@ private:
             case 2:   return 1 + 2; // SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT
             case 5:   return 1 + 2 + 4 + 16 + 32; // SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_FRONT_CENTER | SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT
             case 6:   return 1 + 2 + 4 + 8 + 16 + 32; // SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_FRONT_CENTER | SPEAKER_LOW_FREQUENCY | SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT
+            case 7:   return 1 + 2 + 4  + 16 + 32 + 512 + 1024; // SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_FRONT_CENTER  | SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT | SPEAKER_SIDE_LEFT | SPEAKER_SIDE_RIGHT
+            case 8:   return 1 + 2 + 4 + 8 + 16 + 32 + 512 + 1024; // SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT | SPEAKER_FRONT_CENTER | SPEAKER_LOW_FREQUENCY | SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT | SPEAKER_SIDE_LEFT | SPEAKER_SIDE_RIGHT
             default:  break;
         }
 
@@ -1032,7 +1037,7 @@ AudioFormatWriter* WavAudioFormat::createWriterFor (OutputStream* out, double sa
 
 namespace WavFileHelpers
 {
-    bool slowCopyWavFileWithNewMetadata (const File& file, const StringPairArray& metadata)
+    static bool slowCopyWavFileWithNewMetadata (const File& file, const StringPairArray& metadata)
     {
         TemporaryFile tempFile (file);
 

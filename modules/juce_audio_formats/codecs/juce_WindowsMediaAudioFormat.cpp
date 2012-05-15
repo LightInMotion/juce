@@ -50,7 +50,7 @@ public:
         if (bytesRead != nullptr)
             *bytesRead = numRead;
 
-        return numRead == (int) numBytes ? S_OK : S_FALSE;
+        return (numRead == (int) numBytes) ? S_OK : S_FALSE;
     }
 
     JUCE_COMRESULT Seek (LARGE_INTEGER position, DWORD origin, ULARGE_INTEGER* resultPosition)
@@ -134,9 +134,8 @@ public:
           currentPosition (0),
           bufferStart (0), bufferEnd (0)
     {
-        typedef HRESULT (*WMCreateSyncReaderType) (IUnknown*, DWORD, IWMSyncReader**);
-        WMCreateSyncReaderType wmCreateSyncReader = nullptr;
-        wmCreateSyncReader = (WMCreateSyncReaderType) wmvCoreLib.getFunction ("WMCreateSyncReader");
+        JUCE_LOAD_WINAPI_FUNCTION (wmvCoreLib, WMCreateSyncReader, wmCreateSyncReader,
+                                   HRESULT, (IUnknown*, DWORD, IWMSyncReader**))
 
         if (wmCreateSyncReader != nullptr)
         {
@@ -256,11 +255,7 @@ private:
 
     void checkCoInitialiseCalled()
     {
-        APTTYPE dummy1;
-        APTTYPEQUALIFIER dummy2;
-
-        if (CoGetApartmentType (&dummy1, &dummy2) == CO_E_NOTINITIALIZED)
-            CoInitialize (0);
+        CoInitialize (0);
     }
 
     void scanFileForDetails()

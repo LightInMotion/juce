@@ -117,8 +117,7 @@ protected:
             if (getWarningLevel() == 0)
                 getWarningLevelValue() = 4;
 
-            if (shouldGenerateManifestValue().getValue().isVoid())
-                shouldGenerateManifestValue() = var (true);
+            setValueIfVoid (shouldGenerateManifestValue(), true);
         }
 
         Value getWarningLevelValue()            { return getValue (Ids::winWarningLevel); }
@@ -171,7 +170,7 @@ protected:
     //==============================================================================
     String getIntermediatesPath (const BuildConfiguration& config) const
     {
-        return ".\\" + File::createLegalFileName (config.getName().trim());
+        return prependDot (File::createLegalFileName (config.getName().trim()));
     }
 
     String getConfigTargetPath (const BuildConfiguration& config) const
@@ -185,8 +184,8 @@ protected:
         if (binaryRelPath.isAbsolute())
             return binaryRelPath.toWindowsStyle();
 
-        return ".\\" + binaryRelPath.rebased (projectFolder, getTargetFolder(), RelativePath::buildTargetFolder)
-                                    .toWindowsStyle();
+        return prependDot (binaryRelPath.rebased (projectFolder, getTargetFolder(), RelativePath::buildTargetFolder)
+                                        .toWindowsStyle());
     }
 
     String getPreprocessorDefs (const BuildConfiguration& config, const String& joinString) const
@@ -475,6 +474,12 @@ protected:
             versionParts.add ("0");
 
         return versionParts.joinIntoString (",");
+    }
+
+    static String prependDot (const String& filename)
+    {
+        return FileHelpers::isAbsolutePath (filename) ? filename
+                                                      : (".\\" + filename);
     }
 
     JUCE_DECLARE_NON_COPYABLE (MSVCProjectExporterBase);
@@ -1134,8 +1139,8 @@ protected:
                 includePaths.add ("%(AdditionalIncludeDirectories)");
                 cl->createNewChildElement ("AdditionalIncludeDirectories")->addTextElement (includePaths.joinIntoString (";"));
                 cl->createNewChildElement ("PreprocessorDefinitions")->addTextElement (getPreprocessorDefs (config, ";") + ";%(PreprocessorDefinitions)");
-                cl->createNewChildElement ("RuntimeLibrary")->addTextElement (msvcNeedsDLLRuntimeLib ? (isDebug ? "MultiThreadedDLLDebug" : "MultiThreadedDLL")
-                                                                                                     : (isDebug ? "MultiThreadedDebug" : "MultiThreaded"));
+                cl->createNewChildElement ("RuntimeLibrary")->addTextElement (msvcNeedsDLLRuntimeLib ? (isDebug ? "MultiThreadedDebugDLL" : "MultiThreadedDLL")
+                                                                                                     : (isDebug ? "MultiThreadedDebug"    : "MultiThreaded"));
                 cl->createNewChildElement ("RuntimeTypeInfo")->addTextElement ("true");
                 cl->createNewChildElement ("PrecompiledHeader");
                 cl->createNewChildElement ("AssemblerListingLocation")->addTextElement (FileHelpers::windowsStylePath (intermediatesPath + "/"));
@@ -1208,27 +1213,31 @@ protected:
                      ->addTextElement (config.getPostbuildCommandString());
         }
 
+        ScopedPointer<XmlElement> otherFilesGroup (new XmlElement ("ItemGroup"));
+
         {
             XmlElement* cppFiles    = projectXml.createNewChildElement ("ItemGroup");
             XmlElement* headerFiles = projectXml.createNewChildElement ("ItemGroup");
 
             for (int i = 0; i < groups.size(); ++i)
                 if (groups.getReference(i).getNumChildren() > 0)
-                    addFilesToCompile (groups.getReference(i), *cppFiles, *headerFiles);
+                    addFilesToCompile (groups.getReference(i), *cppFiles, *headerFiles, *otherFilesGroup);
         }
 
         if (iconFile != File::nonexistent)
         {
-            XmlElement* iconGroup = projectXml.createNewChildElement ("ItemGroup");
-            XmlElement* e = iconGroup->createNewChildElement ("None");
-            e->setAttribute ("Include", ".\\" + iconFile.getFileName());
+            XmlElement* e = otherFilesGroup->createNewChildElement ("None");
+            e->setAttribute ("Include", prependDot (iconFile.getFileName()));
         }
+
+        if (otherFilesGroup->getFirstChildElement() != nullptr)
+            projectXml.addChildElement (otherFilesGroup.release());
 
         if (hasResourceFile())
         {
             XmlElement* rcGroup = projectXml.createNewChildElement ("ItemGroup");
             XmlElement* e = rcGroup->createNewChildElement ("ResourceCompile");
-            e->setAttribute ("Include", ".\\" + rcFile.getFileName());
+            e->setAttribute ("Include", prependDot (rcFile.getFileName()));
         }
 
         {
@@ -1253,42 +1262,37 @@ protected:
     }
 
     //==============================================================================
-    void addFileToCompile (const RelativePath& file, XmlElement& cpps, XmlElement& headers, const bool excludeFromBuild, const bool useStdcall) const
-    {
-        jassert (file.getRoot() == RelativePath::buildTargetFolder);
-
-        if (file.hasFileExtension ("cpp;cc;cxx;c"))
-        {
-            XmlElement* e = cpps.createNewChildElement ("ClCompile");
-            e->setAttribute ("Include", file.toWindowsStyle());
-
-            if (excludeFromBuild)
-                e->createNewChildElement ("ExcludedFromBuild")->addTextElement ("true");
-
-            if (useStdcall)
-                e->createNewChildElement ("CallingConvention")->addTextElement ("StdCall");
-        }
-        else if (file.hasFileExtension (headerFileExtensions))
-        {
-            headers.createNewChildElement ("ClInclude")->setAttribute ("Include", file.toWindowsStyle());
-        }
-    }
-
-    void addFilesToCompile (const Project::Item& projectItem, XmlElement& cpps, XmlElement& headers) const
+    void addFilesToCompile (const Project::Item& projectItem, XmlElement& cpps, XmlElement& headers, XmlElement& otherFiles) const
     {
         if (projectItem.isGroup())
         {
             for (int i = 0; i < projectItem.getNumChildren(); ++i)
-                addFilesToCompile (projectItem.getChild(i), cpps, headers);
+                addFilesToCompile (projectItem.getChild(i), cpps, headers, otherFiles);
         }
-        else
+        else if (projectItem.shouldBeAddedToTargetProject())
         {
-            if (projectItem.shouldBeAddedToTargetProject())
-            {
-                const RelativePath path (projectItem.getFile(), getTargetFolder(), RelativePath::buildTargetFolder);
+            const RelativePath path (projectItem.getFile(), getTargetFolder(), RelativePath::buildTargetFolder);
 
-                if (path.hasFileExtension (headerFileExtensions) || (path.hasFileExtension ("cpp;cc;c;cxx")))
-                    addFileToCompile (path, cpps, headers, ! projectItem.shouldBeCompiled(), projectItem.shouldUseStdCall());
+            jassert (path.getRoot() == RelativePath::buildTargetFolder);
+
+            if (path.hasFileExtension ("cpp;cc;cxx;c"))
+            {
+                XmlElement* e = cpps.createNewChildElement ("ClCompile");
+                e->setAttribute ("Include", path.toWindowsStyle());
+
+                if (! projectItem.shouldBeCompiled())
+                    e->createNewChildElement ("ExcludedFromBuild")->addTextElement ("true");
+
+                if (projectItem.shouldUseStdCall())
+                    e->createNewChildElement ("CallingConvention")->addTextElement ("StdCall");
+            }
+            else if (path.hasFileExtension (headerFileExtensions))
+            {
+                headers.createNewChildElement ("ClInclude")->setAttribute ("Include", path.toWindowsStyle());
+            }
+            else if (! path.hasFileExtension ("mm;m"))
+            {
+                otherFiles.createNewChildElement ("None")->setAttribute ("Include", path.toWindowsStyle());
             }
         }
     }
@@ -1301,21 +1305,25 @@ protected:
         e->createNewChildElement ("UniqueIdentifier")->addTextElement (createGUID (path + "_guidpathsaltxhsdf"));
     }
 
-    void addFileToFilter (const RelativePath& file, const String& groupPath, XmlElement& cpps, XmlElement& headers) const
+    void addFileToFilter (const RelativePath& file, const String& groupPath,
+                          XmlElement& cpps, XmlElement& headers, XmlElement& otherFiles) const
     {
         XmlElement* e;
 
         if (file.hasFileExtension (headerFileExtensions))
             e = headers.createNewChildElement ("ClInclude");
-        else
+        else if (file.hasFileExtension (sourceFileExtensions))
             e = cpps.createNewChildElement ("ClCompile");
+        else
+            e = otherFiles.createNewChildElement ("None");
 
         jassert (file.getRoot() == RelativePath::buildTargetFolder);
         e->setAttribute ("Include", file.toWindowsStyle());
         e->createNewChildElement ("Filter")->addTextElement (groupPath);
     }
 
-    void addFilesToFilter (const Project::Item& projectItem, const String& path, XmlElement& cpps, XmlElement& headers, XmlElement& groups) const
+    void addFilesToFilter (const Project::Item& projectItem, const String& path,
+                           XmlElement& cpps, XmlElement& headers, XmlElement& otherFiles, XmlElement& groups) const
     {
         if (projectItem.isGroup())
         {
@@ -1324,26 +1332,24 @@ protected:
             for (int i = 0; i < projectItem.getNumChildren(); ++i)
                 addFilesToFilter (projectItem.getChild(i),
                                   (path.isEmpty() ? String::empty : (path + "\\")) + projectItem.getChild(i).getName(),
-                                  cpps, headers, groups);
+                                  cpps, headers, otherFiles, groups);
         }
-        else
+        else if (projectItem.shouldBeAddedToTargetProject())
         {
-            if (projectItem.shouldBeAddedToTargetProject())
-            {
-                addFileToFilter (RelativePath (projectItem.getFile(), getTargetFolder(), RelativePath::buildTargetFolder),
-                                 path.upToLastOccurrenceOf ("\\", false, false), cpps, headers);
-            }
+            addFileToFilter (RelativePath (projectItem.getFile(), getTargetFolder(), RelativePath::buildTargetFolder),
+                             path.upToLastOccurrenceOf ("\\", false, false), cpps, headers, otherFiles);
         }
     }
 
-    void addFilesToFilter (const Array<RelativePath>& files, const String& path, XmlElement& cpps, XmlElement& headers, XmlElement& groups)
+    void addFilesToFilter (const Array<RelativePath>& files, const String& path,
+                           XmlElement& cpps, XmlElement& headers, XmlElement& otherFiles, XmlElement& groups)
     {
         if (files.size() > 0)
         {
             addFilterGroup (groups, path);
 
             for (int i = 0; i < files.size(); ++i)
-                addFileToFilter (files.getReference(i), path, cpps, headers);
+                addFileToFilter (files.getReference(i), path, cpps, headers, otherFiles);
         }
     }
 
@@ -1355,24 +1361,28 @@ protected:
         XmlElement* groupsXml  = filterXml.createNewChildElement ("ItemGroup");
         XmlElement* cpps       = filterXml.createNewChildElement ("ItemGroup");
         XmlElement* headers    = filterXml.createNewChildElement ("ItemGroup");
+        ScopedPointer<XmlElement> otherFilesGroup (new XmlElement ("ItemGroup"));
 
         for (int i = 0; i < groups.size(); ++i)
             if (groups.getReference(i).getNumChildren() > 0)
-                addFilesToFilter (groups.getReference(i), groups.getReference(i).getName(), *cpps, *headers, *groupsXml);
+                addFilesToFilter (groups.getReference(i), groups.getReference(i).getName(),
+                                  *cpps, *headers, *otherFilesGroup, *groupsXml);
 
         if (iconFile.exists())
         {
-            XmlElement* iconGroup = filterXml.createNewChildElement ("ItemGroup");
-            XmlElement* e = iconGroup->createNewChildElement ("None");
-            e->setAttribute ("Include", ".\\" + iconFile.getFileName());
+            XmlElement* e = otherFilesGroup->createNewChildElement ("None");
+            e->setAttribute ("Include", prependDot (iconFile.getFileName()));
             e->createNewChildElement ("Filter")->addTextElement (ProjectSaver::getJuceCodeGroupName());
         }
+
+        if (otherFilesGroup->getFirstChildElement() != nullptr)
+            filterXml.addChildElement (otherFilesGroup.release());
 
         if (hasResourceFile())
         {
             XmlElement* rcGroup = filterXml.createNewChildElement ("ItemGroup");
             XmlElement* e = rcGroup->createNewChildElement ("ResourceCompile");
-            e->setAttribute ("Include", ".\\" + rcFile.getFileName());
+            e->setAttribute ("Include", prependDot (rcFile.getFileName()));
             e->createNewChildElement ("Filter")->addTextElement (ProjectSaver::getJuceCodeGroupName());
         }
     }

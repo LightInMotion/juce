@@ -46,8 +46,36 @@ public:
 
     Project& getProject() noexcept      { return project; }
 
-    String save()
+    struct SaveThread  : public ThreadWithProgressWindow
     {
+    public:
+        SaveThread (ProjectSaver& saver_)
+            : ThreadWithProgressWindow ("Saving...", true, false), saver (saver_)
+        {}
+
+        void run()
+        {
+            setProgress (-1);
+            result = saver.save (false);
+        }
+
+        ProjectSaver& saver;
+        String result;
+
+        JUCE_DECLARE_NON_COPYABLE (SaveThread);
+    };
+
+    String save (bool showProgressBox)
+    {
+        if (showProgressBox)
+        {
+            SaveThread thread (*this);
+            thread.runThread();
+            return thread.result;
+        }
+
+        const String appConfigUserContent (loadUserContentFromAppConfig());
+
         if (generatedCodeFolder.exists())
             deleteNonHiddenFilesIn (generatedCodeFolder);
 
@@ -65,7 +93,7 @@ public:
         }
 
         if (errors.size() == 0)
-            writeAppConfigFile (modules);
+            writeAppConfigFile (modules, appConfigUserContent);
 
         if (errors.size() == 0)
             writeBinaryDataFiles();
@@ -77,7 +105,7 @@ public:
             writeProjects (modules);
 
         if (errors.size() == 0)
-            writeAppConfigFile (modules); // (this is repeated in case the projects added anything to it)
+            writeAppConfigFile (modules, appConfigUserContent); // (this is repeated in case the projects added anything to it)
 
         if (generatedCodeFolder.exists() && errors.size() == 0)
             writeReadmeFile();
@@ -232,11 +260,42 @@ private:
         return longest;
     }
 
-    void writeAppConfig (OutputStream& out, const OwnedArray<LibraryModule>& modules)
+    File getAppConfigFile() const   { return generatedCodeFolder.getChildFile (project.getAppConfigFilename()); }
+
+    String loadUserContentFromAppConfig() const
+    {
+        StringArray lines, userContent;
+        lines.addLines (getAppConfigFile().loadFileAsString());
+        bool foundCodeSection = false;
+
+        for (int i = 0; i < lines.size(); ++i)
+        {
+            if (lines[i].contains ("[BEGIN_USER_CODE_SECTION]"))
+            {
+                for (int j = i + 1; j < lines.size() && ! lines[j].contains ("[END_USER_CODE_SECTION]"); ++j)
+                    userContent.add (lines[j]);
+
+                foundCodeSection = true;
+                break;
+            }
+        }
+
+        if (! foundCodeSection)
+        {
+            userContent.add (String::empty);
+            userContent.add ("// (You can add your own code in this section, and the Introjucer will not overwrite it)");
+            userContent.add (String::empty);
+        }
+
+        return userContent.joinIntoString (newLine) + newLine;
+    }
+
+    void writeAppConfig (OutputStream& out, const OwnedArray<LibraryModule>& modules, const String& userContent)
     {
         writeAutoGenWarningComment (out);
-        out << "    If you want to change any of these values, use the Introjucer to do so," << newLine
-            << "    rather than editing this file directly!" << newLine
+        out << "    There's a section below where you can add your own custom code safely, and the" << newLine
+            << "    Introjucer will preserve the contents of that block, but the best way to change" << newLine
+            << "    any of these definitions is by using the Introjucer's project settings." << newLine
             << newLine
             << "    Any commented-out settings will assume their default values." << newLine
             << newLine
@@ -246,6 +305,11 @@ private:
         const String headerGuard ("__JUCE_APPCONFIG_" + project.getProjectUID().toUpperCase() + "__");
         out << "#ifndef " << headerGuard << newLine
             << "#define " << headerGuard << newLine
+            << newLine
+            << "//==============================================================================" << newLine
+            << "// [BEGIN_USER_CODE_SECTION]" << newLine
+            << userContent
+            << "// [END_USER_CODE_SECTION]" << newLine
             << newLine
             << "//==============================================================================" << newLine;
 
@@ -302,12 +366,12 @@ private:
             << "#endif  // " << headerGuard << newLine;
     }
 
-    void writeAppConfigFile (const OwnedArray<LibraryModule>& modules)
+    void writeAppConfigFile (const OwnedArray<LibraryModule>& modules, const String& userContent)
     {
-        appConfigFile = generatedCodeFolder.getChildFile (project.getAppConfigFilename());
+        appConfigFile = getAppConfigFile();
 
         MemoryOutputStream mem;
-        writeAppConfig (mem, modules);
+        writeAppConfig (mem, modules, userContent);
         saveGeneratedFile (project.getAppConfigFilename(), mem);
     }
 

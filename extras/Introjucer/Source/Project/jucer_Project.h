@@ -46,6 +46,7 @@ public:
     const String getDocumentTitle();
     const String loadDocument (const File& file);
     const String saveDocument (const File& file);
+    String saveProject (const File& file, bool showProgressBox);
     String saveResourcesOnly (const File& file);
     const File getLastDocumentOpened();
     void setLastDocumentOpened (const File& file);
@@ -83,7 +84,10 @@ public:
     String getVersionAsHex() const;
 
     Value getBundleIdentifier()                         { return getProjectValue (Ids::bundleIdentifier); }
-    void setBundleIdentifierToDefault()                 { getBundleIdentifier() = "com.yourcompany." + CodeHelpers::makeValidIdentifier (getProjectName().toString(), false, true, false); }
+    String getDefaultBundleIdentifier()                 { return "com.yourcompany." + CodeHelpers::makeValidIdentifier (getProjectName().toString(), false, true, false); }
+
+    Value getAAXIdentifier()                            { return getProjectValue (Ids::aaxIdentifier); }
+    String getDefaultAAXIdentifier()                    { return getDefaultBundleIdentifier(); }
 
     Value getCompanyName()                              { return getProjectValue (Ids::companyName); }
 

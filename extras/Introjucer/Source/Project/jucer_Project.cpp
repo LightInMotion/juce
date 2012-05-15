@@ -103,7 +103,7 @@ void Project::setMissingDefaultValues()
     getMainGroup().initialiseMissingProperties();
 
     if (getDocumentTitle().isEmpty())
-        setTitle ("Juce Project");
+        setTitle ("JUCE Project");
 
     if (! projectRoot.hasProperty (Ids::projectType))
         getProjectTypeValue() = ProjectType::getGUIAppTypeName();
@@ -115,17 +115,7 @@ void Project::setMissingDefaultValues()
     moveOldPropertyFromProjectToAllExporters (Ids::bigIcon);
     moveOldPropertyFromProjectToAllExporters (Ids::smallIcon);
 
-    for (Project::ExporterIterator exporter (*this); exporter.next();)
-        if (exporter->getNumConfigurations() == 0)
-            exporter->createDefaultConfigs();
-
-    if (! projectRoot.getChildWithName (Tags::exporters).isValid())
-        createDefaultExporters();
-
     getProjectType().setMissingProjectProperties (*this);
-
-    if (! projectRoot.hasProperty (Ids::bundleIdentifier))
-        setBundleIdentifierToDefault();
 
     if (! projectRoot.getChildWithName (Tags::modulesGroup).isValid())
         addDefaultModules (false);
@@ -236,13 +226,18 @@ const String Project::loadDocument (const File& file)
 
 const String Project::saveDocument (const File& file)
 {
+    return saveProject (file, true);
+}
+
+String Project::saveProject (const File& file, bool showProgressBox)
+{
     updateProjectSettings();
     sanitiseConfigFlags();
 
     StoredSettings::getInstance()->recentFiles.addFile (file);
 
     ProjectSaver saver (*this, file);
-    return saver.save();
+    return saver.save (showProgressBox);
 }
 
 String Project::saveResourcesOnly (const File& file)
@@ -301,8 +296,8 @@ File Project::resolveFilename (String filename) const
     filename = replacePreprocessorDefs (getPreprocessorDefs(), filename)
                 .replaceCharacter ('\\', '/');
 
-    if (File::isAbsolutePath (filename))
-        return File (filename);
+    if (FileHelpers::isAbsolutePath (filename))
+        return File::createFileWithoutCheckingPath (filename); // (avoid assertions for windows-style paths)
 
     return getFile().getSiblingFile (filename);
 }
@@ -325,7 +320,7 @@ String Project::getRelativePathForFile (const File& file) const
     if (p1.upToFirstOccurrenceOf (File::separatorString, true, false)
           .equalsIgnoreCase (p2.upToFirstOccurrenceOf (File::separatorString, true, false)))
     {
-        filename = file.getRelativePathFrom (relativePathBase);
+        filename = FileHelpers::getRelativePathFrom (file, relativePathBase);
     }
 
     return filename;
@@ -544,7 +539,8 @@ bool Project::Item::renameFile (const File& newFile)
 {
     const File oldFile (getFile());
 
-    if (oldFile.moveFileTo (newFile))
+    if (oldFile.moveFileTo (newFile)
+         || (newFile.exists() && ! oldFile.exists()))
     {
         setFile (newFile);
         OpenDocumentManager::getInstance()->fileHasBeenRenamed (oldFile, newFile);

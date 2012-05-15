@@ -64,6 +64,7 @@ public:
     virtual int getVisualStudioVersion() const  { return 0; }
     virtual bool isLinux() const                { return false; }
     virtual bool isOSX() const                  { return false; }
+    virtual bool isAndroid() const              { return false; }
 
     //==============================================================================
     String getName() const                      { return name; }
@@ -317,6 +318,8 @@ protected:
             overwriteFileIfDifferentOrThrow (file, mo);
         }
     }
+
+    static Image rescaleImageForIcon (Image image, int iconSize);
 
 private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ProjectExporter);

@@ -725,6 +725,9 @@ protected:
         info.isRecording = false;
         info.ppqPosition = ticks / 960000.0;
         info.ppqPositionOfLastBarStart = 0; //xxx no idea how to get this correctly..
+        info.isLooping = false;
+        info.ppqLoopStart = 0;
+        info.ppqLoopEnd = 0;
 
         // xxx incorrect if there are tempo changes, but there's no
         // other way of getting this info..
@@ -977,7 +980,12 @@ private:
             case 5:   return ePlugIn_StemFormat_5dot0;
             case 6:   return ePlugIn_StemFormat_5dot1;
             case 7:   return ePlugIn_StemFormat_6dot1;
+
+           #if PT_VERS_MAJOR >= 9
+            case 8:   return ePlugIn_StemFormat_7dot1DTS
+           #else
             case 8:   return ePlugIn_StemFormat_7dot1;
+           #endif
 
             default:  jassertfalse; break; // hmm - not a valid number of chans for RTAS..
         }

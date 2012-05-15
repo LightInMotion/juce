@@ -363,7 +363,7 @@ struct Component::ComponentHelpers
     static Rectangle<int> getParentOrMainMonitorBounds (const Component& comp)
     {
         return comp.getParentComponent() != nullptr ? comp.getParentComponent()->getLocalBounds()
-                                                    : Desktop::getInstance().getMainMonitorArea();
+                                                    : Desktop::getInstance().getDisplays().getMainDisplay().userArea;
     }
 };
 
@@ -568,12 +568,20 @@ void Component::addToDesktop (int styleWanted, void* nativeWindowToAttachTo)
 
         if (peer != nullptr)
         {
+            ScopedPointer<ComponentPeer> oldPeerToDelete (peer);
+
             wasFullscreen = peer->isFullScreen();
             wasMinimised = peer->isMinimised();
             currentConstainer = peer->getConstrainer();
             oldNonFullScreenBounds = peer->getNonFullScreenBounds();
 
-            removeFromDesktop();
+            flags.hasHeavyweightPeerFlag = false;
+            Desktop::getInstance().removeDesktopComponent (this);
+            internalHierarchyChanged(); // give comps a chance to react to the peer change before the old peer is deleted.
+
+            if (safePointer == nullptr)
+                return;
+
             setTopLeftPosition (topLeft);
         }
 
@@ -975,7 +983,7 @@ Rectangle<int> Component::getScreenBounds() const     { return localAreaToGlobal
 
 Rectangle<int> Component::getParentMonitorArea() const
 {
-    return Desktop::getInstance().getMonitorAreaContaining (getScreenBounds().getCentre());
+    return Desktop::getInstance().getDisplays().getDisplayContaining (getScreenBounds().getCentre()).userArea;
 }
 
 Point<int> Component::getLocalPoint (const Component* source, const Point<int>& point) const
@@ -2302,6 +2310,9 @@ void Component::internalMouseEnter (MouseInputSource& source, const Point<int>& 
 
 void Component::internalMouseExit (MouseInputSource& source, const Point<int>& relativePos, const Time& time)
 {
+    if (isCurrentlyBlockedByAnotherModalComponent() && source.getComponentUnderMouse() != this)
+        return;
+
     if (flags.repaintOnMouseActivityFlag)
         repaint();
 
@@ -2384,61 +2395,67 @@ void Component::internalMouseDown (MouseInputSource& source, const Point<int>& r
 
 void Component::internalMouseUp (MouseInputSource& source, const Point<int>& relativePos, const Time& time, const ModifierKeys& oldModifiers)
 {
-    BailOutChecker checker (this);
-
-    if (flags.repaintOnMouseActivityFlag)
-        repaint();
-
-    const MouseEvent me (source, relativePos,
-                         oldModifiers, this, this, time,
-                         getLocalPoint (nullptr, source.getLastMouseDownPosition()),
-                         source.getLastMouseDownTime(),
-                         source.getNumberOfMultipleClicks(),
-                         source.hasMouseMovedSignificantlySincePressed());
-    mouseUp (me);
-
-    if (checker.shouldBailOut())
-        return;
-
-    Desktop& desktop = Desktop::getInstance();
-    desktop.getMouseListeners().callChecked (checker, &MouseListener::mouseUp, me);
-
-    MouseListenerList::sendMouseEvent (*this, checker, &MouseListener::mouseUp, me);
-
-    if (checker.shouldBailOut())
-        return;
-
-    // check for double-click
-    if (me.getNumberOfClicks() >= 2)
+    if (! isCurrentlyBlockedByAnotherModalComponent())
     {
-        mouseDoubleClick (me);
+        BailOutChecker checker (this);
+
+        if (flags.repaintOnMouseActivityFlag)
+            repaint();
+
+        const MouseEvent me (source, relativePos,
+                             oldModifiers, this, this, time,
+                             getLocalPoint (nullptr, source.getLastMouseDownPosition()),
+                             source.getLastMouseDownTime(),
+                             source.getNumberOfMultipleClicks(),
+                             source.hasMouseMovedSignificantlySincePressed());
+        mouseUp (me);
 
         if (checker.shouldBailOut())
             return;
 
-        desktop.mouseListeners.callChecked (checker, &MouseListener::mouseDoubleClick, me);
-        MouseListenerList::sendMouseEvent (*this, checker, &MouseListener::mouseDoubleClick, me);
+        Desktop& desktop = Desktop::getInstance();
+        desktop.getMouseListeners().callChecked (checker, &MouseListener::mouseUp, me);
+
+        MouseListenerList::sendMouseEvent (*this, checker, &MouseListener::mouseUp, me);
+
+        if (checker.shouldBailOut())
+            return;
+
+        // check for double-click
+        if (me.getNumberOfClicks() >= 2)
+        {
+            mouseDoubleClick (me);
+
+            if (checker.shouldBailOut())
+                return;
+
+            desktop.mouseListeners.callChecked (checker, &MouseListener::mouseDoubleClick, me);
+            MouseListenerList::sendMouseEvent (*this, checker, &MouseListener::mouseDoubleClick, me);
+        }
     }
 }
 
 void Component::internalMouseDrag (MouseInputSource& source, const Point<int>& relativePos, const Time& time)
 {
-    BailOutChecker checker (this);
+    if (! isCurrentlyBlockedByAnotherModalComponent())
+    {
+        BailOutChecker checker (this);
 
-    const MouseEvent me (source, relativePos,
-                         source.getCurrentModifiers(), this, this, time,
-                         getLocalPoint (nullptr, source.getLastMouseDownPosition()),
-                         source.getLastMouseDownTime(),
-                         source.getNumberOfMultipleClicks(),
-                         source.hasMouseMovedSignificantlySincePressed());
-    mouseDrag (me);
+        const MouseEvent me (source, relativePos,
+                             source.getCurrentModifiers(), this, this, time,
+                             getLocalPoint (nullptr, source.getLastMouseDownPosition()),
+                             source.getLastMouseDownTime(),
+                             source.getNumberOfMultipleClicks(),
+                             source.hasMouseMovedSignificantlySincePressed());
+        mouseDrag (me);
 
-    if (checker.shouldBailOut())
-        return;
+        if (checker.shouldBailOut())
+            return;
 
-    Desktop::getInstance().getMouseListeners().callChecked (checker, &MouseListener::mouseDrag, me);
+        Desktop::getInstance().getMouseListeners().callChecked (checker, &MouseListener::mouseDrag, me);
 
-    MouseListenerList::sendMouseEvent (*this, checker, &MouseListener::mouseDrag, me);
+        MouseListenerList::sendMouseEvent (*this, checker, &MouseListener::mouseDrag, me);
+    }
 }
 
 void Component::internalMouseMove (MouseInputSource& source, const Point<int>& relativePos, const Time& time)

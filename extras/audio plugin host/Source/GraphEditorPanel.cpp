@@ -61,8 +61,15 @@ void PluginWindow::closeCurrentlyOpenWindowsFor (const uint32 nodeId)
 
 void PluginWindow::closeAllCurrentlyOpenWindows()
 {
-    for (int i = activePluginWindows.size(); --i >= 0;)
-        delete activePluginWindows.getUnchecked(i);
+    if (activePluginWindows.size() > 0)
+    {
+        for (int i = activePluginWindows.size(); --i >= 0;)
+            delete activePluginWindows.getUnchecked(i);
+
+        Component dummyModalComp;
+        dummyModalComp.enterModalState();
+        MessageManager::getInstance()->runDispatchLoopUntil (50);
+    }
 }
 
 PluginWindow* PluginWindow::getWindowFor (AudioProcessorGraph::Node* node,
@@ -84,9 +91,7 @@ PluginWindow* PluginWindow::getWindowFor (AudioProcessorGraph::Node* node,
     }
 
     if (useGenericView)
-    {
         ui = new GenericAudioProcessorEditor (node->getProcessor());
-    }
 
     if (ui != nullptr)
     {
@@ -197,7 +202,7 @@ private:
 
     GraphEditorPanel* getGraphPanel() const noexcept
     {
-        return findParentComponentOfClass ((GraphEditorPanel*) nullptr);
+        return findParentComponentOfClass<GraphEditorPanel>();
     }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PinComponent);
@@ -445,7 +450,7 @@ private:
 
     GraphEditorPanel* getGraphPanel() const noexcept
     {
-        return findParentComponentOfClass ((GraphEditorPanel*) nullptr);
+        return findParentComponentOfClass<GraphEditorPanel>();
     }
 
     FilterComponent (const FilterComponent&);
@@ -683,7 +688,7 @@ private:
 
     GraphEditorPanel* getGraphPanel() const noexcept
     {
-        return findParentComponentOfClass ((GraphEditorPanel*) nullptr);
+        return findParentComponentOfClass<GraphEditorPanel>();
     }
 
     void getDistancesFromEnds (int x, int y, double& distanceFromStart, double& distanceFromEnd) const
@@ -701,8 +706,7 @@ private:
 
 //==============================================================================
 GraphEditorPanel::GraphEditorPanel (FilterGraph& graph_)
-    : graph (graph_),
-      draggingConnector (nullptr)
+    : graph (graph_)
 {
     graph.addChangeListener (this);
     setOpaque (true);
@@ -711,7 +715,7 @@ GraphEditorPanel::GraphEditorPanel (FilterGraph& graph_)
 GraphEditorPanel::~GraphEditorPanel()
 {
     graph.removeChangeListener (this);
-    deleteAndZero (draggingConnector);
+    draggingConnector = nullptr;
     deleteAllChildren();
 }
 
@@ -726,7 +730,7 @@ void GraphEditorPanel::mouseDown (const MouseEvent& e)
     {
         PopupMenu m;
 
-        MainHostWindow* const mainWindow = findParentComponentOfClass ((MainHostWindow*) nullptr);
+        MainHostWindow* const mainWindow = findParentComponentOfClass<MainHostWindow>();
 
         if (mainWindow != nullptr)
         {
@@ -866,7 +870,6 @@ void GraphEditorPanel::beginConnectorDrag (const uint32 sourceFilterID, const in
                                            const uint32 destFilterID, const int destFilterChannel,
                                            const MouseEvent& e)
 {
-    delete draggingConnector;
     draggingConnector = dynamic_cast <ConnectorComponent*> (e.originalComponent);
 
     if (draggingConnector == nullptr)
@@ -897,9 +900,9 @@ void GraphEditorPanel::dragConnector (const MouseEvent& e)
         if (pin != nullptr)
         {
             uint32 srcFilter = draggingConnector->sourceFilterID;
-            int srcChannel = draggingConnector->sourceFilterChannel;
+            int srcChannel   = draggingConnector->sourceFilterChannel;
             uint32 dstFilter = draggingConnector->destFilterID;
-            int dstChannel = draggingConnector->destFilterChannel;
+            int dstChannel   = draggingConnector->destFilterChannel;
 
             if (srcFilter == 0 && ! pin->isInput)
             {
@@ -938,11 +941,11 @@ void GraphEditorPanel::endDraggingConnector (const MouseEvent& e)
     const MouseEvent e2 (e.getEventRelativeTo (this));
 
     uint32 srcFilter = draggingConnector->sourceFilterID;
-    int srcChannel = draggingConnector->sourceFilterChannel;
+    int srcChannel   = draggingConnector->sourceFilterChannel;
     uint32 dstFilter = draggingConnector->destFilterID;
-    int dstChannel = draggingConnector->destFilterChannel;
+    int dstChannel   = draggingConnector->destFilterChannel;
 
-    deleteAndZero (draggingConnector);
+    draggingConnector = nullptr;
 
     PinComponent* const pin = findPinAt (e2.x, e2.y);
 

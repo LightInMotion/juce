@@ -59,9 +59,9 @@ void ResamplingAudioSource::prepareToPlay (int samplesPerBlockExpected,
     bufferPos = 0;
     subSampleOffset = 0.0;
 
-    filterStates.calloc (numChannels);
-    srcBuffers.calloc (numChannels);
-    destBuffers.calloc (numChannels);
+    filterStates.calloc ((size_t) numChannels);
+    srcBuffers.calloc ((size_t) numChannels);
+    destBuffers.calloc ((size_t) numChannels);
     createLowPass (ratio);
     resetFilters();
 }
@@ -110,11 +110,7 @@ void ResamplingAudioSource::getNextAudioBlock (const AudioSourceChannelInfo& inf
         int numToDo = jmin (sampsNeeded - sampsInBuffer,
                             bufferSize - endOfBufferPos);
 
-        AudioSourceChannelInfo readInfo;
-        readInfo.buffer = &buffer;
-        readInfo.numSamples = numToDo;
-        readInfo.startSample = endOfBufferPos;
-
+        AudioSourceChannelInfo readInfo (&buffer, endOfBufferPos, numToDo);
         input->getNextAudioBlock (readInfo);
 
         if (localRatio > 1.0001)
@@ -228,7 +224,7 @@ void ResamplingAudioSource::setFilterCoefficients (double c1, double c2, double 
 
 void ResamplingAudioSource::resetFilters()
 {
-    filterStates.clear (numChannels);
+    filterStates.clear ((size_t) numChannels);
 }
 
 void ResamplingAudioSource::applyFilter (float* samples, int num, FilterState& fs)

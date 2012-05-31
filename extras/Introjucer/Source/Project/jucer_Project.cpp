@@ -77,7 +77,7 @@ void Project::setTitle (const String& newTitle)
     getMainGroup().getNameValue() = newTitle;
 }
 
-const String Project::getDocumentTitle()
+String Project::getDocumentTitle()
 {
     return getProjectName().toString();
 }
@@ -202,45 +202,52 @@ void Project::addDefaultModules (bool shouldCopyFilesLocally)
 }
 
 //==============================================================================
-const String Project::loadDocument (const File& file)
+static void registerRecentFile (const File& file)
+{
+    RecentlyOpenedFilesList::registerRecentFileNatively (file);
+    StoredSettings::getInstance()->recentFiles.addFile (file);
+    StoredSettings::getInstance()->flush();
+}
+
+Result Project::loadDocument (const File& file)
 {
     ScopedPointer <XmlElement> xml (XmlDocument::parse (file));
 
     if (xml == nullptr || ! xml->hasTagName (Tags::projectRoot.toString()))
-        return "Not a valid Jucer project!";
+        return Result::fail ("Not a valid Jucer project!");
 
     ValueTree newTree (ValueTree::fromXml (*xml));
 
     if (! newTree.hasType (Tags::projectRoot))
-        return "The document contains errors and couldn't be parsed!";
+        return Result::fail ("The document contains errors and couldn't be parsed!");
 
-    StoredSettings::getInstance()->recentFiles.addFile (file);
-    StoredSettings::getInstance()->flush();
+    registerRecentFile (file);
     projectRoot = newTree;
 
     removeDefunctExporters();
     setMissingDefaultValues();
 
-    return String::empty;
+    return Result::ok();
 }
 
-const String Project::saveDocument (const File& file)
+Result Project::saveDocument (const File& file)
 {
-    return saveProject (file, true);
+    return saveProject (file, false);
 }
 
-String Project::saveProject (const File& file, bool showProgressBox)
+Result Project::saveProject (const File& file, bool isCommandLineApp)
 {
     updateProjectSettings();
     sanitiseConfigFlags();
 
-    StoredSettings::getInstance()->recentFiles.addFile (file);
+    if (! isCommandLineApp)
+        registerRecentFile (file);
 
     ProjectSaver saver (*this, file);
-    return saver.save (showProgressBox);
+    return saver.save (! isCommandLineApp);
 }
 
-String Project::saveResourcesOnly (const File& file)
+Result Project::saveResourcesOnly (const File& file)
 {
     ProjectSaver saver (*this, file);
     return saver.saveResourcesOnly();
@@ -249,7 +256,7 @@ String Project::saveResourcesOnly (const File& file)
 //==============================================================================
 File Project::lastDocumentOpened;
 
-const File Project::getLastDocumentOpened()
+File Project::getLastDocumentOpened()
 {
     return lastDocumentOpened;
 }
@@ -700,7 +707,13 @@ Project::Item Project::Item::getOrCreateSubGroup (const String& name)
 
 Project::Item Project::Item::addNewSubGroup (const String& name, int insertIndex)
 {
-    Item group (createGroup (project, name, createGUID (getID() + name + String (getNumChildren()))));
+    String newID (createGUID (getID() + name + String (getNumChildren())));
+
+    int n = 0;
+    while (findItemWithID (newID).isValid())
+        newID = createGUID (newID + String (++n));
+
+    Item group (createGroup (project, name, newID));
 
     jassert (canContain (group));
     addChild (group, insertIndex);

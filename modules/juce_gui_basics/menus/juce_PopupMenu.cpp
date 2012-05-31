@@ -371,9 +371,9 @@ public:
     void mouseDrag (const MouseEvent&)    { timerCallback(); }
     void mouseUp   (const MouseEvent&)    { timerCallback(); }
 
-    void mouseWheelMove (const MouseEvent&, float /*amountX*/, float amountY)
+    void mouseWheelMove (const MouseEvent&, const MouseWheelDetails& wheel)
     {
-        alterChildYPos (roundToInt (-10.0f * amountY * PopupMenuSettings::scrollZone));
+        alterChildYPos (roundToInt (-10.0f * wheel.deltaY * PopupMenuSettings::scrollZone));
         lastMousePos = Point<int> (-1, -1);
     }
 
@@ -1312,9 +1312,7 @@ public:
 
     void paint (Graphics& g)
     {
-        Font f (getLookAndFeel().getPopupMenuFont());
-        f.setBold (true);
-        g.setFont (f);
+        g.setFont (getLookAndFeel().getPopupMenuFont().boldened());
         g.setColour (findColour (PopupMenu::headerTextColourId));
 
         g.drawFittedText (getName(),
@@ -1473,7 +1471,7 @@ int PopupMenu::showWithOptionalCallback (const Options& options, ModalComponentM
    #if JUCE_MODAL_LOOPS_PERMITTED
     return (userCallback == nullptr && canBeModal) ? window->runModalLoop() : 0;
    #else
-    jassert (userCallback != nullptr && canBeModal);
+    jassert (! (userCallback == nullptr && canBeModal));
     return 0;
    #endif
 }
@@ -1482,7 +1480,7 @@ int PopupMenu::showWithOptionalCallback (const Options& options, ModalComponentM
 #if JUCE_MODAL_LOOPS_PERMITTED
 int PopupMenu::showMenu (const Options& options)
 {
-    return showWithOptionalCallback (options, 0, true);
+    return showWithOptionalCallback (options, nullptr, true);
 }
 #endif
 

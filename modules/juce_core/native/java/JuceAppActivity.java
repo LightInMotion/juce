@@ -32,6 +32,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.*;
@@ -84,6 +85,13 @@ public final class JuceAppActivity   extends Activity
     {
     	super.onResume();
     	resumeApp();
+    }
+
+    @Override
+    public void onConfigurationChanged (Configuration cfg)
+    {
+        super.onConfigurationChanged (cfg);
+        setContentView (viewHolder);
     }
 
     private void callAppLauncher()

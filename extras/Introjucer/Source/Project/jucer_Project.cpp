@@ -28,6 +28,7 @@
 #include "../Project Saving/jucer_ProjectExporter.h"
 #include "../Project Saving/jucer_ProjectSaver.h"
 #include "../Application/jucer_OpenDocumentManager.h"
+#include "../Application/jucer_Application.h"
 
 
 //==============================================================================
@@ -62,10 +63,14 @@ Project::Project (const File& file_)
     mainProjectIcon.setImage (ImageCache::getFromMemory (BinaryData::juce_icon_png, BinaryData::juce_icon_pngSize));
 
     projectRoot.addListener (this);
+
+    JucerApplication::getApp()->projectOpened (this);
 }
 
 Project::~Project()
 {
+    JucerApplication::getApp()->projectClosed (this);
+
     projectRoot.removeListener (this);
     OpenDocumentManager::getInstance()->closeAllDocumentsUsingProject (*this, false);
 }
@@ -201,6 +206,12 @@ void Project::addDefaultModules (bool shouldCopyFilesLocally)
     }
 }
 
+bool Project::isAudioPluginModuleMissing() const
+{
+    return getProjectType().isAudioPlugin()
+            && ! isModuleEnabled ("juce_audio_plugin_client");
+}
+
 //==============================================================================
 static void registerRecentFile (const File& file)
 {
@@ -222,7 +233,9 @@ Result Project::loadDocument (const File& file)
         return Result::fail ("The document contains errors and couldn't be parsed!");
 
     registerRecentFile (file);
+    JucerApplication::getApp()->projectClosed (this);
     projectRoot = newTree;
+    JucerApplication::getApp()->projectOpened (this);
 
     removeDefunctExporters();
     setMissingDefaultValues();
@@ -254,17 +267,10 @@ Result Project::saveResourcesOnly (const File& file)
 }
 
 //==============================================================================
-File Project::lastDocumentOpened;
+static File lastDocumentOpened;
 
-File Project::getLastDocumentOpened()
-{
-    return lastDocumentOpened;
-}
-
-void Project::setLastDocumentOpened (const File& file)
-{
-    lastDocumentOpened = file;
-}
+File Project::getLastDocumentOpened()                   { return lastDocumentOpened; }
+void Project::setLastDocumentOpened (const File& file)  { lastDocumentOpened = file; }
 
 //==============================================================================
 void Project::valueTreePropertyChanged (ValueTree& tree, const Identifier& property)
@@ -275,24 +281,10 @@ void Project::valueTreePropertyChanged (ValueTree& tree, const Identifier& prope
     changed();
 }
 
-void Project::valueTreeChildAdded (ValueTree& parentTree, ValueTree& childWhichHasBeenAdded)
-{
-    changed();
-}
-
-void Project::valueTreeChildRemoved (ValueTree& parentTree, ValueTree& childWhichHasBeenRemoved)
-{
-    changed();
-}
-
-void Project::valueTreeChildOrderChanged (ValueTree& parentTree)
-{
-    changed();
-}
-
-void Project::valueTreeParentChanged (ValueTree& tree)
-{
-}
+void Project::valueTreeChildAdded (ValueTree&, ValueTree&)      { changed(); }
+void Project::valueTreeChildRemoved (ValueTree&, ValueTree&)    { changed(); }
+void Project::valueTreeChildOrderChanged (ValueTree&)           { changed(); }
+void Project::valueTreeParentChanged (ValueTree&)               {}
 
 //==============================================================================
 File Project::resolveFilename (String filename) const

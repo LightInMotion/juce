@@ -98,8 +98,10 @@ public:
     StringPairArray getPreprocessorDefs() const;
 
     //==============================================================================
-    File getAppIncludeFile() const                      { return getGeneratedCodeFolder().getChildFile (getJuceSourceHFilename()); }
     File getGeneratedCodeFolder() const                 { return getFile().getSiblingFile ("JuceLibraryCode"); }
+    File getAppIncludeFile() const                      { return getGeneratedCodeFolder().getChildFile (getJuceSourceHFilename()); }
+    File getBinaryDataCppFile() const                   { return getGeneratedCodeFolder().getChildFile ("BinaryData.cpp"); }
+    File getBinaryDataHeaderFile() const                { return getBinaryDataCppFile().withFileExtension (".h"); }
 
     //==============================================================================
     String getAmalgamatedHeaderFileName() const         { return "juce_amalgamated.h"; }
@@ -242,7 +244,9 @@ public:
     void removeModule (const String& moduleID);
     int getNumModules() const;
     String getModuleID (int index) const;
+
     void addDefaultModules (bool shouldCopyFilesLocally);
+    bool isAudioPluginModuleMissing() const;
 
     void createRequiredModules (const ModuleList& availableModules, OwnedArray<LibraryModule>& modules) const;
 
@@ -265,7 +269,6 @@ public:
 private:
     friend class Item;
     ValueTree projectRoot;
-    static File lastDocumentOpened;
     DrawableImage mainProjectIcon;
 
     void updateProjectSettings();

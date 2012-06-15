@@ -228,13 +228,18 @@ public:
     Rectangle<int> getBounds (const bool global) const
     {
         NSRect r = [view frame];
+        NSWindow* window = [view window];
 
-        if (global && [view window] != nil)
+        if (global && window != nil)
         {
-            r = [view convertRect: r toView: nil];
-            NSRect wr = [[view window] frame];
-            r.origin.x += wr.origin.x;
-            r.origin.y += wr.origin.y;
+            r = [[view superview] convertRect: r toView: nil];
+
+           #if defined (MAC_OS_X_VERSION_10_7) && MAC_OS_X_VERSION_MIN_ALLOWED >= MAC_OS_X_VERSION_10_7
+            r = [window convertRectToScreen: r];
+           #else
+            r.origin = [window convertBaseToScreen: r.origin];
+           #endif
+
             r.origin.y = [[[NSScreen screens] objectAtIndex: 0] frame].size.height - r.origin.y - r.size.height;
         }
         else
@@ -528,6 +533,7 @@ public:
         wheel.isReversed = false;
         wheel.isSmooth = false;
 
+       #if ! JUCE_PPC
         @try
         {
            #if defined (MAC_OS_X_VERSION_10_7) && MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_7
@@ -555,6 +561,7 @@ public:
         }
         @catch (...)
         {}
+       #endif
 
         if (wheel.deltaX == 0 && wheel.deltaY == 0)
         {

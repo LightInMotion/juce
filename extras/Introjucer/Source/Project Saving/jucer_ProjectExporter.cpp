@@ -136,7 +136,7 @@ ProjectExporter::ProjectExporter (Project& project_, const ValueTree& settings_)
       settings (settings_),
       project (project_),
       projectType (project_.getProjectType()),
-      projectName (project_.getProjectName().toString()),
+      projectName (project_.getTitle()),
       projectFolder (project_.getFile().getParentDirectory()),
       modulesGroup (nullptr)
 {
@@ -350,10 +350,10 @@ void ProjectExporter::addNewConfiguration (const BuildConfiguration* configToCop
     configs.addChild (newConfig, -1, project.getUndoManagerFor (configs));
 }
 
-void ProjectExporter::deleteConfiguration (int index)
+void ProjectExporter::BuildConfiguration::removeFromExporter()
 {
-    ValueTree configs (getConfigurations());
-    configs.removeChild (index, project.getUndoManagerFor (configs));
+    ValueTree configs (config.getParent());
+    configs.removeChild (config, project.getUndoManagerFor (configs));
 }
 
 void ProjectExporter::createDefaultConfigs()
@@ -521,22 +521,12 @@ StringPairArray ProjectExporter::BuildConfiguration::getAllPreprocessorDefs() co
 
 StringArray ProjectExporter::BuildConfiguration::getHeaderSearchPaths() const
 {
-    StringArray s;
-    s.addTokens (getHeaderSearchPathString(), ";", String::empty);
-    s.trim();
-    s.removeEmptyStrings();
-    s.removeDuplicates (false);
-    return s;
+    return getSearchPathsFromString (getHeaderSearchPathString());
 }
 
 StringArray ProjectExporter::BuildConfiguration::getLibrarySearchPaths() const
 {
-    StringArray s;
-    s.addTokens (getLibrarySearchPathString(), ";", String::empty);
-    s.trim();
-    s.removeEmptyStrings();
-    s.removeDuplicates (false);
-    return s;
+    return getSearchPathsFromString (getLibrarySearchPathString());
 }
 
 String ProjectExporter::BuildConfiguration::getGCCLibraryPathFlags() const

@@ -681,7 +681,15 @@ public:
        #if USE_COREGRAPHICS_RENDERING
         if (usingCoreGraphics)
         {
-            CoreGraphicsContext context (cg, (float) [view frame].size.height);
+            float displayScale = 1.0f;
+
+           #if defined (MAC_OS_X_VERSION_10_7) && (MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_7)
+            NSScreen* screen = [[view window] screen];
+            if ([screen respondsToSelector: @selector (backingScaleFactor)])
+                displayScale = screen.backingScaleFactor;
+           #endif
+
+            CoreGraphicsContext context (cg, (float) [view frame].size.height, displayScale);
 
             insideDrawRect = true;
             handlePaint (context);
@@ -836,7 +844,7 @@ public:
             if (isKeyDown)
                 keysCurrentlyDown.addIfNotAlreadyThere (keyCode);
             else
-                keysCurrentlyDown.removeValue (keyCode);
+                keysCurrentlyDown.removeFirstMatchingValue (keyCode);
         }
     }
 

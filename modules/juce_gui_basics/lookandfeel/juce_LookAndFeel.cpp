@@ -239,6 +239,8 @@ LookAndFeel::LookAndFeel()
         0x1004500, /*CodeEditorComponent::backgroundColourId*/                0xffffffff,
         0x1004502, /*CodeEditorComponent::highlightColourId*/                 textHighlightColour,
         0x1004503, /*CodeEditorComponent::defaultTextColourId*/               0xff000000,
+        0x1004504, /*CodeEditorComponent::lineNumberBackgroundId*/            0x44999999,
+        0x1004505, /*CodeEditorComponent::lineNumberTextId*/                  0x44000000,
 
         0x1007000, /*ColourSelector::backgroundColourId*/                     0xffe5e5e5,
         0x1007001, /*ColourSelector::labelTextColourId*/                      0xff000000,
@@ -947,26 +949,13 @@ void LookAndFeel::drawBubble (Graphics& g,
                               float boxX, float boxY,
                               float boxW, float boxH)
 {
-    int side = 0;
+    const Rectangle<float> body (boxX, boxY, boxW, boxH);
 
-    if (tipX < boxX)
-        side = 1;
-    else if (tipX > boxX + boxW)
-        side = 3;
-    else if (tipY > boxY + boxH)
-        side = 2;
-
-    const float indent = 2.0f;
     Path p;
-    p.addBubble (boxX + indent,
-                 boxY + indent,
-                 boxW - indent * 2.0f,
-                 boxH - indent * 2.0f,
-                 5.0f,
-                 tipX, tipY,
-                 side,
-                 0.5f,
-                 jmin (15.0f, boxW * 0.3f, boxH * 0.3f));
+    p.addBubble (body,
+                 body.getUnion (Rectangle<float> (tipX, tipY, 1.0f, 1.0f)),
+                 Point<float> (tipX, tipY),
+                 5.0f, jmin (15.0f, boxW * 0.2f, boxH * 0.2f));
 
     //xxx need to take comp as param for colour
     g.setColour (findColour (TooltipWindow::backgroundColourId).withAlpha (0.9f));
@@ -2539,28 +2528,41 @@ void LookAndFeel::drawPropertyComponentLabel (Graphics& g, int, int height,
 
 const Rectangle<int> LookAndFeel::getPropertyComponentContentPosition (PropertyComponent& component)
 {
-    return Rectangle<int> (component.getWidth() / 3, 1,
-                           component.getWidth() - component.getWidth() / 3 - 1, component.getHeight() - 3);
+    const int textW = jmin (200, component.getWidth() / 3);
+    return Rectangle<int> (textW, 1, component.getWidth() - textW - 1, component.getHeight() - 3);
 }
 
 //==============================================================================
-void LookAndFeel::drawCallOutBoxBackground (CallOutBox& box, Graphics& g, const Path& path)
+void LookAndFeel::drawCallOutBoxBackground (CallOutBox& box, Graphics& g,
+                                            const Path& path, Image& cachedImage)
 {
-    Image content (Image::ARGB, box.getWidth(), box.getHeight(), true);
-
+    if (cachedImage.isNull())
     {
-        Graphics g2 (content);
+        const int w = box.getWidth();
+        const int h = box.getHeight();
 
-        g2.setColour (Colour::greyLevel (0.23f).withAlpha (0.9f));
-        g2.fillPath (path);
+        Image renderedPath (Image::ARGB, w, h, true);
 
-        g2.setColour (Colours::white.withAlpha (0.8f));
-        g2.strokePath (path, PathStrokeType (2.0f));
+        {
+            Graphics g2 (renderedPath);
+
+            g2.setColour (Colour::greyLevel (0.23f).withAlpha (0.9f));
+            g2.fillPath (path);
+        }
+
+        cachedImage = Image (Image::ARGB, w, h, true);
+        Graphics g2 (cachedImage);
+        DropShadowEffect::drawShadow (g2, renderedPath, 5.0f, 0.4f, 0, 2);
     }
 
-    DropShadowEffect shadow;
-    shadow.setShadowProperties (5.0f, 0.4f, 0, 2);
-    shadow.applyEffect (content, g, 1.0f);
+    g.setColour (Colours::black);
+    g.drawImageAt (cachedImage, 0, 0);
+
+    g.setColour (Colour::greyLevel (0.23f).withAlpha (0.9f));
+    g.fillPath (path);
+
+    g.setColour (Colours::white.withAlpha (0.8f));
+    g.strokePath (path, PathStrokeType (2.0f));
 }
 
 

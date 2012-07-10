@@ -23,13 +23,32 @@
   ==============================================================================
 */
 
-#ifndef __JUCER_PROJECTINFORMATIONCOMPONENT_H_30FFCD07__
-#define __JUCER_PROJECTINFORMATIONCOMPONENT_H_30FFCD07__
-
-#include "jucer_Project.h"
-#include "../Utility/jucer_JucerTreeViewBase.h"
-
-JucerTreeViewBase* createProjectConfigTreeViewRoot (Project& project);
+#ifndef __JUCER_APPEARANCESETTINGS_H_34D762C7__
+#define __JUCER_APPEARANCESETTINGS_H_34D762C7__
 
 
-#endif   // __JUCER_PROJECTINFORMATIONCOMPONENT_H_30FFCD07__
+class AppearanceSettings
+{
+public:
+    AppearanceSettings (const CodeEditorComponent& editorToCopyFrom);
+
+    bool readFromFile (const File& file);
+    bool readFromXML (const XmlElement&);
+    bool writeToFile (const File& file) const;
+
+    void applyToCodeEditor (CodeEditorComponent& editor) const;
+
+    StringArray getColourNames() const;
+    Value getColourValue (const String& colourName);
+    bool getColour (const String& name, Colour& resultIfFound) const;
+
+    Font getCodeFont() const;
+    Value getCodeFontValue();
+
+    ValueTree settings;
+
+    static Component* createEditorWindow();
+};
+
+
+#endif

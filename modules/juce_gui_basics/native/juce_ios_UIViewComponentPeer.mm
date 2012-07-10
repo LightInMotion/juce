@@ -779,7 +779,7 @@ void UIViewComponentPeer::handleTouches (UIEvent* event, const bool isDown, cons
         if (isCancel)
         {
             currentTouches.clear();
-            currentModifiers = currentModifiers.withoutMouseButtons();
+            modsToSend = currentModifiers = currentModifiers.withoutMouseButtons();
         }
 
         handleMouseEvent (touchIndex, pos, modsToSend, time);
@@ -788,7 +788,7 @@ void UIViewComponentPeer::handleTouches (UIEvent* event, const bool isDown, cons
 
         if (isUp || isCancel)
         {
-            handleMouseEvent (touchIndex, Point<int> (-1, -1), currentModifiers, time);
+            handleMouseEvent (touchIndex, Point<int> (-1, -1), modsToSend, time);
             if (! isValidPeer (this))
                 return;
         }
@@ -901,7 +901,7 @@ void UIViewComponentPeer::drawRect (CGRect r)
         CGContextClearRect (cg, CGContextGetClipBoundingBox (cg));
 
     CGContextConcatCTM (cg, CGAffineTransformMake (1, 0, 0, -1, 0, view.bounds.size.height));
-    CoreGraphicsContext g (cg, view.bounds.size.height);
+    CoreGraphicsContext g (cg, view.bounds.size.height, [UIScreen mainScreen].scale);
 
     insideDrawRect = true;
     handlePaint (g);

@@ -304,7 +304,7 @@ public:
                 }
                 else
                 {
-                    if (index < 0)
+                    if (! isPositiveAndBelow (index, children.size()))
                         index = children.size();
 
                     undoManager->perform (new AddOrRemoveChildAction (this, index, child));
@@ -663,6 +663,8 @@ ValueTree& ValueTree::operator= (const ValueTree& other)
     }
 
     object = other.object;
+
+    listeners.call (&ValueTree::Listener::valueTreeRedirected, *this);
     return *this;
 }
 
@@ -670,12 +672,6 @@ ValueTree& ValueTree::operator= (const ValueTree& other)
 ValueTree::ValueTree (ValueTree&& other) noexcept
     : object (static_cast <SharedObject::Ptr&&> (other.object))
 {
-}
-
-ValueTree& ValueTree::operator= (ValueTree&& other) noexcept
-{
-    object = static_cast <SharedObject::Ptr&&> (other.object);
-    return *this;
 }
 #endif
 
@@ -1014,6 +1010,8 @@ ValueTree ValueTree::readFromGZIPData (const void* const data, const size_t numB
     GZIPDecompressorInputStream gzipStream (in);
     return readFromStream (gzipStream);
 }
+
+void ValueTree::Listener::valueTreeRedirected (ValueTree&) {}
 
 //==============================================================================
 #if JUCE_UNIT_TESTS

@@ -35,31 +35,38 @@ class ProjectTreeViewBase;
 */
 class ProjectContentComponent  : public Component,
                                  public ApplicationCommandTarget,
-                                 public ChangeListener
+                                 private ChangeListener
 {
 public:
     //==============================================================================
     ProjectContentComponent();
     ~ProjectContentComponent();
 
-    void paint (Graphics& g);
-
     Project* getProject() const noexcept    { return project; }
     virtual void setProject (Project* project);
+
     void saveTreeViewState();
+    void saveOpenDocumentList();
+    void reloadLastOpenDocuments();
 
     bool showEditorForFile (const File& f);
+    File getCurrentFile() const;
+
     bool showDocument (OpenDocumentManager::Document* doc);
     void hideDocument (OpenDocumentManager::Document* doc);
+    OpenDocumentManager::Document* getCurrentDocument() const   { return currentDocument; }
+
     void hideEditor();
     bool setEditorComponent (Component* editor, OpenDocumentManager::Document* doc);
     Component* getEditorComponent() const                       { return contentView; }
-    OpenDocumentManager::Document* getCurrentDocument() const   { return currentDocument; }
+
+    bool goToPreviousFile();
+    bool goToNextFile();
 
     void updateMissingFileStatuses();
     virtual void createProjectTabs();
 
-    void changeListenerCallback (ChangeBroadcaster*);
+    void showBubbleMessage (const Rectangle<int>& pos, const String& text);
 
     //==============================================================================
     ApplicationCommandTarget* getNextCommandTarget();
@@ -68,16 +75,23 @@ public:
     bool isCommandActive (const CommandID commandID);
     bool perform (const InvocationInfo& info);
 
+    void paint (Graphics& g);
+    void resized();
+    void childBoundsChanged (Component* child);
+
 protected:
     Project* project;
     OpenDocumentManager::Document* currentDocument;
+    RecentDocumentList recentDocumentList;
 
     TabbedComponent treeViewTabs;
     ScopedPointer<ResizableEdgeComponent> resizerBar;
     ScopedPointer<Component> contentView;
 
     ComponentBoundsConstrainer treeSizeConstrainer;
+    BubbleMessageComponent bubbleMessage;
 
+    void changeListenerCallback (ChangeBroadcaster*);
     void updateMainWindowTitle();
     bool reinvokeCommandAfterClosingPropertyEditors (const InvocationInfo&);
     bool canProjectBeLaunched() const;

@@ -30,7 +30,7 @@ public:
     MouseInputSourceInternal (MouseInputSource& source_, const int index_, const bool isMouseDevice_)
         : index (index_), isMouseDevice (isMouseDevice_), source (source_), lastPeer (nullptr),
           isUnboundedMouseModeOn (false), isCursorVisibleUntilOffscreen (false), currentCursorHandle (nullptr),
-          mouseEventCounter (0)
+          mouseEventCounter (0), mouseMovedSignificantlySincePressed (false)
     {
     }
 
@@ -306,15 +306,8 @@ public:
     }
 
     //==============================================================================
-    Time getLastMouseDownTime() const noexcept
-    {
-        return Time (mouseDowns[0].time);
-    }
-
-    Point<int> getLastMouseDownPosition() const noexcept
-    {
-        return mouseDowns[0].position;
-    }
+    const Time& getLastMouseDownTime() const noexcept              { return mouseDowns[0].time; }
+    const Point<int>& getLastMouseDownPosition() const noexcept    { return mouseDowns[0].position; }
 
     int getNumberOfMultipleClicks() const noexcept
     {
@@ -447,9 +440,7 @@ private:
 
     struct RecentMouseDown
     {
-        RecentMouseDown()  : component (nullptr)
-        {
-        }
+        RecentMouseDown() noexcept  : component (nullptr) {}
 
         Point<int> position;
         Time time;
@@ -466,8 +457,8 @@ private:
     };
 
     RecentMouseDown mouseDowns[4];
-    bool mouseMovedSignificantlySincePressed;
     Time lastTime;
+    bool mouseMovedSignificantlySincePressed;
 
     void registerMouseDown (const Point<int>& screenPos, const Time& time,
                             Component* const component, const ModifierKeys& modifiers) noexcept

@@ -64,6 +64,7 @@ public:
     void clear()
     {
         setSize (faces.size());
+        defaultFace = nullptr;
     }
 
     Typeface::Ptr findTypefaceFor (const Font& font)
@@ -127,10 +128,7 @@ public:
 private:
     struct CachedFace
     {
-        CachedFace() noexcept
-            : lastUsageCount (0)
-        {
-        }
+        CachedFace() noexcept  : lastUsageCount (0) {}
 
         // Although it seems a bit wacky to store the name here, it's because it may be a
         // placeholder rather than a real one, e.g. "<Sans-Serif>" vs the actual typeface name.
@@ -384,6 +382,13 @@ void Font::setTypefaceStyle (const String& typefaceStyle)
         font->typeface = nullptr;
         font->ascent = 0;
     }
+}
+
+Font Font::withTypefaceStyle (const String& newStyle) const
+{
+    Font f (*this);
+    f.setTypefaceStyle (newStyle);
+    return f;
 }
 
 StringArray Font::getAvailableStyles() const
@@ -695,7 +700,7 @@ Font Font::fromString (const String& fontDescription)
     if (name.isEmpty())
         name = getDefaultSansSerifFontName();
 
-    String sizeAndStyle (fontDescription.substring (separator + 1));
+    String sizeAndStyle (fontDescription.substring (separator + 1).trimStart());
 
     float height = sizeAndStyle.getFloatValue();
     if (height <= 0)
